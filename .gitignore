@@ -1,0 +1,63 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+vendor/
+
+# Waydroid / Android
+.local/
+waydroid/
+data/
+vendor/
+
+# Build / cache
+dist/
+build/
+.cache/
+tmp/
+temp/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Local databases & logs
+server/data/*.sqlite*
+*.log
+npm-debug.log*
+
+# System & OS
+.DS_Store
+Thumbs.db
+# Waydroid / Android system files
+.local/
+waydroid/
+vendor/
+data/
+
+# Build / cache
+dist/
+build/
+.cache/
+tmp/
+temp/
+
+# IDE
+.vscode/
+.idea/

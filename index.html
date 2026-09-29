@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html data-theme="">
+<head>
+  <title>DrawRealm - Free Multiplayer Drawing &amp; Guessing Game</title>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0 maximum-scale=1.0 user-scalable=no">
+  <meta name="description" content="DrawRealm is a free online multiplayer drawing and guessing game. Draw and guess words with your friends and people all around the world! Score the most points and be the winner!">
+  <meta name="keywords" content="drawrealm, draw realm, drawing game, pictionary, multiplayer drawing, scribble, paint, draw, guess, draw and guess, fun, points, score, winner, browser, free, friends">
+  <meta name="robots" content="index">
+  <meta http-equiv="content-language" content="en">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="DrawRealm - Free Multiplayer Drawing &amp; Guessing Game">
+  <meta property="og:url" content="https://drawrealm.local/">
+  <meta property="og:description" content="DrawRealm is a free online multiplayer drawing and guessing game. Draw and guess words with your friends and people all around the world! Score the most points and be the winner!">
+  <meta property="og:site_name" content="DrawRealm - Free Multiplayer Drawing &amp; Guessing Game">
+  <meta property="og:image" content="img/thumbnail.png">
+  <meta property="og:image:width" content="768">
+  <meta property="og:image:height" content="435">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DrawRealm - Free Multiplayer Drawing &amp; Guessing Game">
+  <meta name="twitter:description" content="DrawRealm is a free online multiplayer drawing and guessing game. Draw and guess words with your friends and people all around the world! Score the most points and be the winner!">
+  <meta name="twitter:image" content="img/thumbnail.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" type="text/css" href="css/style.css" title="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inconsolata&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,400&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script>
+    // Safe mock for removed ad tags to protect legacy listeners
+    window.aiptag = { cmd: { display: [], player: [] } };
+  </script>
+</head>
+<body translate="no">
+  <div id="preroll"></div>
+  <div id="home">
+    <div class="logo-big">
+      <a href="index.html"><img src="img/logo.svg" alt="DrawRealm"></a>
+      <div class="avatar-container"></div>
+    </div>
+    <div class="panels">
+      <div class="panel-left"></div>
+      <div class="panel">
+        <div class="container-name-lang">
+          <input class="input-name" type="text" spellcheck="false" autocomplete="off" placeholder="Enter your name" maxlength="21" data-translate="placeholder">
+          <select>
+            <option value="0">English</option>
+            <option value="1">German</option>
+            <option value="2">Bulgarian</option>
+            <option value="3">Czech</option>
+            <option value="4">Danish</option>
+            <option value="5">Dutch</option>
+            <option value="6">Finnish</option>
+            <option value="7">French</option>
+            <option value="8">Estonian</option>
+            <option value="9">Greek</option>
+            <option value="10">Hebrew</option>
+            <option value="11">Hungarian</option>
+            <option value="12">Italian</option>
+            <option value="13">Japanese</option>
+            <option value="14">Korean</option>
+            <option value="15">Latvian</option>
+            <option value="16">Macedonian</option>
+            <option value="17">Norwegian</option>
+            <option value="18">Portuguese</option>
+            <option value="19">Polish</option>
+            <option value="20">Romanian</option>
+            <option value="21">Russian</option>
+            <option value="22">Serbian</option>
+            <option value="23">Slovakian</option>
+            <option value="24">Spanish</option>
+            <option value="25">Swedish</option>
+            <option value="26">Tagalog</option>
+            <option value="27">Turkish</option>
+          </select>
+        </div>
+        <div class="avatar-customizer">
+          <div class="arrows left">
+            <div class="arrow left" data-avatar-index="1"></div>
+            <div class="arrow left" data-avatar-index="2"></div>
+            <div class="arrow left" data-avatar-index="0"></div>
+          </div>
+          <div class="container"></div>
+          <div class="arrows right">
+            <div class="arrow right" data-avatar-index="1"></div>
+            <div class="arrow right" data-avatar-index="2"></div>
+            <div class="arrow right" data-avatar-index="0"></div>
+          </div>
+          <div class="randomize" data-tooltip="Randomize your Avatar!" data-tooltipdir="N"></div>
+        </div>
+
+        <!-- Clean, retro-grouped Home Actions -->
+        <div class="home-actions-group">
+          <button class="button-play"><span data-translate="text">Play!</span></button>
+          <div class="action-btn-row">
+            <button type="button" class="button-action button-create-styled" id="btn-create-room-open"><span data-translate="text">CREATE ROOM</span></button><button class="button-create" style="display:none"></button>
+            <button type="button" class="button-action button-join" id="btn-join-room-open">JOIN ROOM</button>
+          </div>
+          <button type="button" class="button-action button-public" id="btn-public-rooms-open">PUBLIC ROOMS</button>
+          <div class="action-btn-row info-row">
+            <button type="button" class="button-action button-rules" id="btn-rules-open">GAME RULES</button>
+            <button type="button" class="button-action button-how" id="btn-how-open">HOW TO PLAY</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-right">
+        <div class="side-info-card panel">
+          <div class="side-badge">DRAWREALM</div>
+          <h3>Draw. Guess. Evolve.</h3>
+          <p class="side-intro">Classic multiplayer drawing and guessing pictionary with optional deep Evolution progression.</p>
+          <div class="side-features">
+            <div class="feat-item"><b>Classic Mode</b> — Fast-paced drawing and guessing fun</div>
+            <div class="feat-item"><b>Evolution Mode</b> — Earn XP, level up, and draft 38 powers</div>
+            <div class="feat-item"><b>Custom Rooms</b> — Play with up to 20 friends</div>
+          </div>
+          <button type="button" class="btn-side-guide" id="btn-side-evo-guide">EVOLUTION GUIDE</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom">
+      <svg viewBox="0 0 1 1" preserveAspectRatio="none"><polygon points="0,0 1,1 0,1"></polygon></svg>
+      <div class="footer">
+        <div class="section-container">
+          <div class="section panel">
+            <img class="icon" src="img/about.gif" alt="About">
+            <h2 data-translate="text">About</h2>
+            <b>DrawRealm </b><span data-translate="text">is a free online multiplayer drawing and guessing pictionary game.</span><br><br>
+            <span data-translate="text">A normal game consists of a few rounds, where every round a player has to draw their chosen word and others have to guess it to gain points!</span><br><br>
+            <span data-translate="text">The person with the most points at the end of the game, will then be crowned as the winner!</span><br>
+            <span>Have fun!</span>
+          </div>
+          <div class="section panel">
+            <img class="icon" src="img/news.gif" alt="News">
+            <h2 data-translate="text">News</h2>
+            <div class="news">
+              <div class="head">
+                <div class="title">DrawRealm Evolution</div>
+                <div class="date">New Release</div>
+              </div>
+              <div class="content">
+                Welcome to <b>DrawRealm</b>!
+                <ul>
+                  <li><b>Evolution Mode:</b> Progress from Level 0 Human to Level 10 Cosmic Creator!</li>
+                  <li><b>38 Unique Powers:</b> Score Surge, Point Bomb, Letter Vision, Magic Brush, Shields &amp; Ultimates!</li>
+                  <li><b>Public Rooms Browser:</b> Discover open multiplayer games directly from the main menu.</li>
+                  <li><b>Streamlined Lobby:</b> Clear room code sharing, instant copy buttons, and pre-game rules.</li>
+                  <li><b>Preserved Classic Gameplay:</b> 100% original drawing engine and multiplayer sync.</li>
+                </ul>
+                <br><span>Have fun playing DrawRealm!</span>
+              </div>
+            </div>
+          </div>
+          <div class="section panel">
+            <img class="icon" src="img/how.gif" alt="How to Play">
+            <h2 data-translate="text">How to play</h2>
+            <div id="tutorial">
+              <div class="pages">
+                <div class="page"><img src="img/tutorial/step1.gif" alt="Step 1"><div class="description" data-translate="text">When it&apos;s your turn, choose a word you want to draw!</div></div>
+                <div class="page"><img src="img/tutorial/step2.gif" alt="Step 2"><div class="description" data-translate="text">Try to draw your choosen word! No spelling!</div></div>
+                <div class="page"><img src="img/tutorial/step3.gif" alt="Step 3"><div class="description" data-translate="text">Let other players try to guess your drawn word!</div></div>
+                <div class="page"><img src="img/tutorial/step4.gif" alt="Step 4"><div class="description" data-translate="text">When it&apos;s not your turn, try to guess what other players are drawing!</div></div>
+                <div class="page"><img src="img/tutorial/step5.gif" alt="Step 5"><div class="description" data-translate="text">Score the most points and be crowned the winner at the end!</div></div>
+              </div>
+              <div class="navigation"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tos">
+          <a href="mailto:contact@drawrealm.local">Contact</a>
+          <a href="terms.html">Terms of Service</a>
+          <a href="credits.html">Credits</a>
+        </div>
+        <div class="notice">DrawRealm is a multiplayer drawing community. Please draw fairly and respectfully!</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="game" style="display:none">
+    <div id="game-wrapper">
+      <div id="game-logo">
+        <a href="index.html"><img src="img/logo.svg" alt="DrawRealm"></a>
+        <div class="ad-1"></div>
+      </div>
+      <div id="game-bar">
+        <div id="game-settings" data-tooltip="Settings" data-tooltipdir="W"><div class="icon"></div></div>
+        <div id="game-clock"><div class="text"></div></div>
+        <div id="game-round"><div class="text"></div></div>
+        <div id="game-word">
+          <div class="description">DRAW THIS</div>
+          <div class="word"></div>
+          <div class="hints"><div class="container"></div></div>
+        </div>
+      </div>
+      <div id="game-players"><div class="players-list"></div></div>
+      <div id="game-players-footer"></div>
+      <div id="game-chat-input-mobile">
+        <form class="chat-form">
+          <input type="text" autocomplete="off" placeholder="Type your guess here..." maxlength="100" data-translate="placeholder">
+          <div class="characters"></div>
+        </form>
+      </div>
+      <div id="game-canvas">
+        <canvas width="800" height="600"></canvas>
+        <div class="overlay"></div>
+        <div class="overlay-content">
+          <div class="text"></div>
+          <div class="words"></div>
+          <div class="reveal">
+            <p><span data-translate="text">The word was</span><span class="word"></span></p>
+            <div class="reason"></div>
+            <div class="player-container"></div>
+          </div>
+          <div class="result">
+            <div class="message"><b class="winner-name"></b><span class="winner-text"></span></div>
+            <div class="podests"><div class="podest-1"></div><div class="podest-2"></div><div class="podest-3"></div></div>
+            <div class="ranks"></div>
+          </div>
+          <div class="room">
+            <!-- Refined Lobby Top Bar: Clear Room Code, Copy Link, Mode Badge & Rules -->
+            <div class="lobby-header-bar">
+              <div class="lobby-room-badge">
+                <span class="badge-label">ROOM CODE:</span>
+                <span class="badge-code" id="lobby-code-display">--------</span>
+                <button type="button" class="btn-lobby-copy" id="btn-lobby-copy-link" title="Copy Invite Link">COPY LINK</button>
+              </div>
+              <div class="lobby-mode-badge">
+                <span class="mode-tag" id="lobby-mode-tag">CLASSIC MODE</span>
+              </div>
+              <div class="lobby-rules-btn-wrap">
+                <button type="button" class="btn-lobby-rules" id="btn-lobby-rules">GAME RULES</button>
+              </div>
+            </div>
+
+            <div class="group-settings">
+              <div class="key"><img src="img/setting_1.gif" alt="Players"><span data-translate="text">Players</span></div>
+              <div class="value">
+                <select id="item-settings-slots" data-setting="1">
+                  <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_0.gif" alt="Language"><span data-translate="text">Language</span></div>
+              <div class="value">
+                <select id="item-settings-language" data-setting="0">
+                  <option value="0">English</option><option value="1">German</option><option value="2">Bulgarian</option><option value="3">Czech</option><option value="4">Danish</option><option value="5">Dutch</option><option value="6">Finnish</option><option value="7">French</option><option value="8">Estonian</option><option value="9">Greek</option><option value="10">Hebrew</option><option value="11">Hungarian</option><option value="12">Italian</option><option value="13">Japanese</option><option value="14">Korean</option><option value="15">Latvian</option><option value="16">Macedonian</option><option value="17">Norwegian</option><option value="18">Portuguese</option><option value="19">Polish</option><option value="20">Romanian</option><option value="21">Russian</option><option value="22">Serbian</option><option value="23">Slovakian</option><option value="24">Spanish</option><option value="25">Swedish</option><option value="26">Tagalog</option><option value="27">Turkish</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_2.gif" alt="Drawtime"><span data-translate="text">Drawtime</span></div>
+              <div class="value">
+                <select id="item-settings-drawtime" data-setting="2">
+                  <option>15</option><option>20</option><option>30</option><option>40</option><option>50</option><option>60</option><option>70</option><option>80</option><option>90</option><option>100</option><option>120</option><option>150</option><option>180</option><option>210</option><option>240</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_3.gif" alt="Rounds"><span data-translate="text">Rounds</span></div>
+              <div class="value">
+                <select id="item-settings-rounds" data-setting="3">
+                  <option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_6.gif" alt="Game Mode"><span data-translate="text">Game Mode</span></div>
+              <div class="value">
+                <select id="item-settings-mode" data-setting="6" data-translate="children">
+                  <option value="0">Normal</option>
+                  <option value="1">Hidden</option>
+                  <option value="2">Combination</option>
+                  <option value="6">Evolution</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_4.gif" alt="Word Count"><span data-translate="text">Word Count</span></div>
+              <div class="value">
+                <select id="item-settings-wordcount" data-setting="4">
+                  <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_5.gif" alt="Hints"><span data-translate="text">Hints</span></div>
+              <div class="value">
+                <select id="item-settings-hints" data-setting="5">
+                  <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+                </select>
+              </div>
+            </div>
+            <div class="group-customwords">
+              <div class="game-room-name">
+                <div data-translate="text">Custom words</div>
+                <div class="game-room-checkbox">
+                  <label for="item-settings-customwordsonly" data-translate="text">Use custom words only</label>
+                  <input id="item-settings-customwordsonly" type="checkbox" data-setting="7">
+                </div>
+              </div>
+              <textarea id="item-settings-customwords" maxlength="20000" spellcheck="false" placeholder="Minimum of 10 words. 1-32 characters per word! 20000 characters maximum. Separated by a , (comma)"></textarea>
+            </div>
+            <div class="group-buttons">
+              <button id="button-start-game"><span data-translate="text">Start!</span></button>
+              <button id="button-invite"><img src="img/link.svg" alt="link"><span data-translate="text">Invite</span></button>
+            </div>
+          </div>
+        </div>
+        <div id="overlay-evolution-choice" style="display:none">
+          <div class="evolution-draft-header">
+            <div class="evolution-draft-title">EVOLUTION LEVEL UP!</div>
+            <div class="evolution-draft-subtitle">Choose 1 Power to Equip</div>
+          </div>
+          <div class="evolution-draft-choices"></div>
+        </div>
+        <div id="game-rate"><div class="like"></div><div class="dislike"></div></div>
+        <div class="bubbles"></div>
+      </div>
+      <div id="game-toolbar">
+        <div class="color-preview-mobile"></div>
+        <div class="color-preview">
+          <svg id="color-preview-primary" viewBox="0 0 1 1"><polygon points="0,0 0,1 1,1 1,0"></polygon></svg>
+          <svg id="color-preview-secondary" viewBox="0 0 1 1"><polygon points="0.85,0 1,0 1,1 0.15,1"></polygon></svg>
+        </div>
+        <div class="colors" data-tooltip="Left-/Rightclick to choose a color!" data-tooltipdir="S"></div>
+        <div class="sizes" data-tooltip="Click to change brush size!" data-tooltipdir="S">
+          <div class="size-preview clickable"><div class="icon"></div></div>
+          <div class="container"><div class="arrow"></div></div>
+        </div>
+        <div class="toolbar-group-tools"></div>
+        <div class="toolbar-group-actions"></div>
+      </div>
+      <div id="evolution-dock" style="display:none">
+        <div class="evolution-badge-container">
+          <span class="evolution-badge-level">LEVEL 0 - HUMAN</span>
+          <div class="evolution-xp-bar-bg"><div class="evolution-xp-bar-fill" style="width:0%"></div></div>
+          <span class="evolution-badge-xp">0 / 50 XP</span>
+          <span class="evolution-badge-streak" style="display:none">Streak: 0</span>
+        </div>
+        <div class="evolution-powers-container">
+          <div class="evolution-slot" data-slot="0">
+            <button class="evolution-power-btn empty" data-key="1"><span class="key-badge">1</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
+          </div>
+          <div class="evolution-slot" data-slot="1">
+            <button class="evolution-power-btn empty" data-key="2"><span class="key-badge">2</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
+          </div>
+          <div class="evolution-slot" data-slot="2">
+            <button class="evolution-power-btn empty" data-key="3"><span class="key-badge">3</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
+          </div>
+          <div class="evolution-slot evolution-slot-ultimate" data-slot="3">
+            <button class="evolution-power-btn ultimate empty" data-key="4"><span class="key-badge">4</span><span class="power-icon"></span><span class="power-name">LOCKED</span><div class="cooldown-overlay" style="display:none"></div></button>
+          </div>
+        </div>
+      </div>
+      <div id="game-chat">
+        <div class="ad-2"></div>
+        <div class="chat-content"></div>
+        <form class="chat-form">
+          <input type="text" autocomplete="off" placeholder="Type your guess here..." maxlength="100" data-translate="placeholder">
+          <div class="characters"></div>
+        </form>
+      </div>
+    </div>
+    <div id="game-keyboard"><div class="keyboard-wrapper"><div class="keys"></div></div></div>
+  </div>
+
+  <div id="load"><div class="container"><div class="icon"><div class="graphic"></div></div></div></div>
+
+  <!-- Standard skribbl modal preserved for native player reports & settings -->
+  <div id="modal">
+    <div class="modal-wrapper">
+      <div class="modal-container">
+        <div class="modal-title"><div class="text"></div><div class="close">&times;</div></div>
+        <div class="modal-content">
+          <div class="modal-container-info"><div class="message"></div><button class="ok">Okay!</button></div>
+          <div class="modal-container-player">
+            <div class="player"></div>
+            <div class="buttons">
+              <div class="button-pair"><button class="kick" data-translate="text">Kick</button><button class="ban" data-translate="text">Ban</button></div>
+              <button class="votekick" data-translate="text">Votekick</button>
+              <button class="mute">Mute</button>
+              <button class="report" data-translate="text">Report</button>
+            </div>
+            <div class="report-menu">
+              <div class="description" data-translate="text">Please select the reasons for your report</div>
+              <div class="row"><label data-translate="text" for="report-reason-toxic">Inappropriate Messages / Drawings</label><input type="checkbox" id="report-reason-toxic"></div>
+              <div class="row"><label data-translate="text" for="report-reason-spam">Spam</label><input type="checkbox" id="report-reason-spam"></div>
+              <div class="row"><label data-translate="text" for="report-reason-bot">Botting / Cheating</label><input type="checkbox" id="report-reason-bot"></div>
+              <button data-translate="text" id="report-send">Report</button>
+            </div>
+            <div class="invite">
+              <div class="text" data-translate="text">Invite your friends!</div>
+              <button data-translate="text" id="modal-player-button-invite">Click to copy Invite</button>
+            </div>
+          </div>
+          <div class="modal-container-room">
+            <div id="game-invite">
+              <div class="input-container"><input type="text" readonly id="input-invite"><div class="link-overlay"><span data-translate="text">Hover over me to see the invite link!</span></div></div>
+              <button id="copy-invite"><span data-translate="text">Copy</span></button>
+            </div>
+          </div>
+          <div class="modal-container-settings">
+            <div class="group" id="volume">
+              <div class="title"><div class="icon volume"></div><div class="desc" data-translate="text">Volume</div><div class="volume-value">0%</div></div>
+              <div class="item"><input type="range" min="0" max="100"></div>
+            </div>
+            <div class="group">
+              <div class="title"><div class="icon hotkeys"></div><div class="desc" data-translate="text">Hotkeys</div><button class="reset" data-translate="text" data-tooltip="Reset hotkeys to default" data-tooltipdir="N">Reset</button></div>
+              <div id="hotkey-list"></div>
+            </div>
+            <div class="group">
+              <div class="title"><div class="icon misc"></div><div class="desc" data-translate="text">Miscellaneous</div></div>
+              <div class="item">
+                <div class="key" data-translate="text">Mobile Keyboard (Experimental)</div>
+                <select id="select-mobile-keyboard-enabled"><option value="0">Disabled</option><option value="1">Enabled</option></select>
+                <div class="key" data-translate="text">Mobile Keyboard Language Layout</div>
+                <select id="select-mobile-keyboard-layout"></select>
+                <div class="key" data-translate="text">Mobile Chat Input Layout</div>
+                <select data-translate="children" id="select-mobile-chat-input"><option value="bottom">Bottom</option><option value="top">Top</option></select>
+                <div class="key" data-translate="text">Brush Pressure Sensitivity</div>
+                <select data-translate="children" id="select-pressure-sensitivity"><option value="0">Off</option><option value="1">On</option></select>
+                <div class="key" data-translate="text">Mobile Chat Bubbles (chat messages on drawing board)</div>
+                <select id="select-chat-bubbles"><option value="0">Enabled</option><option value="1">Disabled while drawing</option><option value="2">Disabled</option></select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- DRAWREALM MODALS: Retro-Styled, Clean Information Flow   -->
+  <!-- ======================================================== -->
+
+  <!-- 1. CREATE ROOM MODAL -->
+  <div class="drawrealm-modal" id="drawrealm-modal-create" style="display:none">
+    <div class="drawrealm-modal-wrapper">
+      <div class="drawrealm-modal-box">
+        <div class="drawrealm-modal-header">
+          <div class="modal-title">CREATE ROOM</div>
+          <button type="button" class="modal-close-btn" data-close-modal="create">&times;</button>
+        </div>
+        <div class="drawrealm-modal-body">
+          <div class="create-form-row">
+            <label class="create-label">Room Type:</label>
+            <div class="toggle-group" id="create-room-type-group">
+              <button type="button" class="btn-toggle active" data-value="private">PRIVATE</button>
+              <button type="button" class="btn-toggle" data-value="public">PUBLIC</button>
+            </div>
+          </div>
+
+          <div class="create-form-row">
+            <label class="create-label">Game Mode:</label>
+            <div class="toggle-group" id="create-mode-group">
+              <button type="button" class="btn-toggle active" data-value="0">CLASSIC</button>
+              <button type="button" class="btn-toggle" data-value="6">EVOLUTION</button>
+            </div>
+          </div>
+
+          <div class="create-form-grid">
+            <div class="form-item">
+              <label>Players:</label>
+              <select id="create-select-slots">
+                <option value="2">2 Players</option>
+                <option value="4">4 Players</option>
+                <option value="6">6 Players</option>
+                <option value="8" selected>8 Players</option>
+                <option value="10">10 Players</option>
+                <option value="12">12 Players</option>
+                <option value="16">16 Players</option>
+                <option value="20">20 Players</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>Rounds:</label>
+              <select id="create-select-rounds">
+                <option value="2">2 Rounds</option>
+                <option value="3" selected>3 Rounds</option>
+                <option value="4">4 Rounds</option>
+                <option value="5">5 Rounds</option>
+                <option value="6">6 Rounds</option>
+                <option value="8">8 Rounds</option>
+                <option value="10">10 Rounds</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>Draw Time:</label>
+              <select id="create-select-drawtime">
+                <option value="30">30 seconds</option>
+                <option value="45">45 seconds</option>
+                <option value="60">60 seconds</option>
+                <option value="80" selected>80 seconds</option>
+                <option value="100">100 seconds</option>
+                <option value="120">120 seconds</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>Language:</label>
+              <select id="create-select-lang">
+                <option value="0" selected>English</option>
+                <option value="1">German</option>
+                <option value="7">French</option>
+                <option value="24">Spanish</option>
+                <option value="21">Russian</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="create-form-customwords">
+            <div class="customwords-header">
+              <span>Custom Words (Optional):</span>
+              <label><input type="checkbox" id="create-check-customonly"> Custom words only</label>
+            </div>
+            <textarea id="create-input-customwords" placeholder="apple, banana, spaceship, dragon (separated by commas)"></textarea>
+          </div>
+
+          <div class="create-form-submit">
+            <button type="button" class="btn-submit-create" id="btn-submit-create-room">Create &amp; Enter Room!</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. JOIN ROOM MODAL -->
+  <div class="drawrealm-modal" id="drawrealm-modal-join" style="display:none">
+    <div class="drawrealm-modal-wrapper">
+      <div class="drawrealm-modal-box modal-box-sm">
+        <div class="drawrealm-modal-header">
+          <div class="modal-title">JOIN ROOM</div>
+          <button type="button" class="modal-close-btn" data-close-modal="join">&times;</button>
+        </div>
+        <div class="drawrealm-modal-body">
+          <p class="join-modal-desc">Enter the Room Code or paste a friend&apos;s invite link:</p>
+          <div class="join-input-wrap">
+            <input type="text" id="input-join-code" placeholder="e.g. KKY8ja2m" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="join-error-msg" id="join-error-msg" style="display:none"></div>
+          <button type="button" class="btn-submit-join" id="btn-submit-join-room">Join Room!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. PUBLIC ROOMS BROWSER MODAL -->
+  <div class="drawrealm-modal" id="drawrealm-modal-public" style="display:none">
+    <div class="drawrealm-modal-wrapper">
+      <div class="drawrealm-modal-box modal-box-lg">
+        <div class="drawrealm-modal-header">
+          <div class="modal-title">PUBLIC ROOMS</div>
+          <button type="button" class="modal-close-btn" data-close-modal="public">&times;</button>
+        </div>
+        <div class="drawrealm-modal-body">
+          <div class="public-browser-bar">
+            <span class="browser-count" id="public-rooms-count-label">Loading public rooms...</span>
+            <button type="button" class="btn-browser-refresh" id="btn-refresh-public-rooms">REFRESH</button>
+          </div>
+          <div class="public-rooms-list" id="public-rooms-list-container">
+            <!-- Room cards rendered via JS -->
+          </div>
+          <div class="public-browser-footer">
+            <span>Want to host a match for anyone to join?</span>
+            <button type="button" class="btn-create-public-quick" id="btn-create-public-quick">Create Public Room</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. GAME RULES MODAL -->
+  <div class="drawrealm-modal" id="drawrealm-modal-rules" style="display:none">
+    <div class="drawrealm-modal-wrapper">
+      <div class="drawrealm-modal-box modal-box-md">
+        <div class="drawrealm-modal-header">
+          <div class="modal-title">GAME RULES</div>
+          <button type="button" class="modal-close-btn" data-close-modal="rules">&times;</button>
+        </div>
+        <div class="drawrealm-modal-body">
+          <div class="rules-list">
+            <div class="rule-item"><span class="rule-num">1</span> <div class="rule-txt"><b>The Drawer:</b> In each turn, one player is chosen as the drawer.</div></div>
+            <div class="rule-item"><span class="rule-num">2</span> <div class="rule-txt"><b>Word Selection:</b> The drawer picks a secret word from 3 offered options.</div></div>
+            <div class="rule-item"><span class="rule-num">3</span> <div class="rule-txt"><b>Drawing Fairly:</b> Draw with colors, brush sizes, and shapes. <b>No letters, numbers, or spelling!</b></div></div>
+            <div class="rule-item"><span class="rule-num">4</span> <div class="rule-txt"><b>Live Guessing:</b> All other players watch the canvas and type guesses in chat.</div></div>
+            <div class="rule-item"><span class="rule-num">5</span> <div class="rule-txt"><b>Points for Speed:</b> Guesser points are awarded based on how fast you guess correctly.</div></div>
+            <div class="rule-item"><span class="rule-num">6</span> <div class="rule-txt"><b>Drawer Reward:</b> The drawer earns points when other players successfully guess the drawing.</div></div>
+            <div class="rule-item"><span class="rule-num">7</span> <div class="rule-txt"><b>Rounds:</b> Rounds continue until every player has drawn their turn.</div></div>
+            <div class="rule-item"><span class="rule-num">8</span> <div class="rule-txt"><b>Match Goal:</b> Complete all configured rounds to build your score on the leaderboard.</div></div>
+            <div class="rule-item"><span class="rule-num">9</span> <div class="rule-txt"><b>Victory:</b> The player with the highest total score at the end wins the match!</div></div>
+          </div>
+          <button type="button" class="btn-modal-dismiss" data-close-modal="rules">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. HOW TO PLAY MODAL -->
+  <div class="drawrealm-modal" id="drawrealm-modal-how" style="display:none">
+    <div class="drawrealm-modal-wrapper">
+      <div class="drawrealm-modal-box modal-box-md">
+        <div class="drawrealm-modal-header">
+          <div class="modal-title">HOW TO PLAY</div>
+          <button type="button" class="modal-close-btn" data-close-modal="how">&times;</button>
+        </div>
+        <div class="drawrealm-modal-body">
+          <div class="how-sections">
+            <div class="how-card">
+              <div class="how-card-title">AS A DRAWER</div>
+              <ul>
+                <li>Look at your secret word at the top of the screen.</li>
+                <li>Pick your brush size and primary/secondary colors.</li>
+                <li>Draw clear shapes, outlines, and visual clues.</li>
+                <li>Do NOT write words, letters, or direct spelling.</li>
+                <li>Help other players guess to maximize your drawer points!</li>
+              </ul>
+            </div>
+
+            <div class="how-card">
+              <div class="how-card-title">AS A GUESSER</div>
+              <ul>
+                <li>Watch the canvas live as strokes appear.</li>
+                <li>Check the hint blanks at the top to know the word length.</li>
+                <li>Type your guesses into the chat bar and hit Enter.</li>
+                <li>Guess quickly! Faster guesses earn maximum score.</li>
+                <li>In Evolution Mode, activate your equipped powers using keys [1], [2], [3], [4]!</li>
+              </ul>
+            </div>
+
+            <div class="how-card">
+              <div class="how-card-title">WINNING THE MATCH</div>
+              <ul>
+                <li>Complete all configured rounds with your lobby.</li>
+                <li>Maintain guess streaks for bonus XP and point multipliers.</li>
+                <li>Climb to 1st place on the podium to take home the crown!</li>
+              </ul>
+            </div>
+          </div>
+          <button type="button" class="btn-modal-dismiss" data-close-modal="how">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. EVOLUTION MODE INTRO MODAL -->
+  <div class="drawrealm-modal" id="drawrealm-modal-evolution-intro" style="display:none">
+    <div class="drawrealm-modal-wrapper">
+      <div class="drawrealm-modal-box modal-box-md">
+        <div class="drawrealm-modal-header">
+          <div class="modal-title">EVOLUTION MODE</div>
+          <button type="button" class="modal-close-btn" data-close-modal="evolution-intro">&times;</button>
+        </div>
+        <div class="drawrealm-modal-body">
+          <div class="evo-intro-motto">"Draw. Guess. Evolve."</div>
+          <p class="evo-intro-lead">Evolution Mode transforms DrawRealm into a deep progression game where you earn Evolution XP and unlock game-changing powers!</p>
+
+          <div class="evo-grid">
+            <div class="evo-card">
+              <div class="evo-card-title">EVOLUTION XP AND LEVELS</div>
+              <p>Earn XP by guessing correctly (+15 XP), guessing fast within 15s (+10 XP), building streaks (+10-40 XP), and completing drawings (+20 XP). Level up from <b>Level 0 Human</b> to <b>Level 10 Cosmic Creator</b>!</p>
+            </div>
+            <div class="evo-card">
+              <div class="evo-card-title">3-POWER DRAFTS</div>
+              <p>Each time you level up, you receive a draft of 3 random powers. Pick 1 to equip into your hotkeys (Slots 1, 2, 3, or Ultimate Slot 4).</p>
+            </div>
+            <div class="evo-card">
+              <div class="evo-card-title">38 UNIQUE POWERS</div>
+              <p>Explore 7 categories: <b>Attack</b> (Score Surge, Point Bomb), <b>Intelligence</b> (Letter Vision, Word Scan), <b>Creator</b> (Magic Brush, Shape Assist), <b>Defense</b> (Shield, Time Guard), <b>Chaos</b> (Randomizer), and <b>Ultimates</b> (Reality Shift, Overdrive)!</p>
+            </div>
+            <div class="evo-card evo-card-rule">
+              <div class="evo-card-title">THE GOLDEN EVOLUTION RULE</div>
+              <p><b>Powers enhance gameplay but do not automatically guarantee victory.</b> Sharp drawing and quick guessing remain the ultimate keys to triumph!</p>
+            </div>
+          </div>
+          <button type="button" class="btn-modal-dismiss btn-evo-play" data-close-modal="evolution-intro">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/socket.io.js"></script>
+  <script src="js/evolution.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

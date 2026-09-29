@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 100" width="480" height="100">
+  <defs>
+    <filter id="retro-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="0" flood-color="#141829" flood-opacity="0.85" />
+    </filter>
+    <linearGradient id="grad-D" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff6b81"/><stop offset="100%" stop-color="#ee3855"/></linearGradient>
+    <linearGradient id="grad-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffa502"/><stop offset="100%" stop-color="#e67e22"/></linearGradient>
+    <linearGradient id="grad-a" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffdd59"/><stop offset="100%" stop-color="#f1c40f"/></linearGradient>
+    <linearGradient id="grad-w" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2ed573"/><stop offset="100%" stop-color="#27ae60"/></linearGradient>
+    <linearGradient id="grad-R" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00d2d3"/><stop offset="100%" stop-color="#0984e3"/></linearGradient>
+    <linearGradient id="grad-e" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#54a0ff"/><stop offset="100%" stop-color="#2e86de"/></linearGradient>
+    <linearGradient id="grad-a2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a55eea"/><stop offset="100%" stop-color="#8854d0"/></linearGradient>
+    <linearGradient id="grad-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff78c4"/><stop offset="100%" stop-color="#eb3b5a"/></linearGradient>
+    <linearGradient id="grad-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fed330"/><stop offset="100%" stop-color="#f39c12"/></linearGradient>
+  </defs>
+
+  <style>
+    .bubble-letter {
+      font-family: 'Nunito', 'Arial Rounded MT Bold', sans-serif;
+      font-weight: 900;
+      font-size: 68px;
+      stroke: #18192b;
+      stroke-width: 9px;
+      stroke-linejoin: round;
+      paint-order: stroke fill;
+      filter: url(#retro-shadow);
+      letter-spacing: -2px;
+    }
+    .highlight {
+      fill: #ffffff;
+      opacity: 0.55;
+    }
+  </style>
+
+  <!-- Decorative Sparkles / Pencil Tip -->
+  <g transform="translate(14, 18) rotate(-15)">
+    <polygon points="0,15 15,22 15,8" fill="#ffdd59" stroke="#18192b" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="15,8 40,8 40,22 15,22" fill="#ff4757" stroke="#18192b" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="0,15 5,17 5,13" fill="#18192b"/>
+  </g>
+
+  <!-- Letters: DRAW -->
+  <g class="bubble-letter">
+    <!-- D -->
+    <text x="50" y="68" fill="url(#grad-D)" transform="rotate(-4 65 50)">D</text>
+    <!-- r -->
+    <text x="105" y="70" fill="url(#grad-r)" transform="rotate(3 118 50)">r</text>
+    <!-- a -->
+    <text x="140" y="68" fill="url(#grad-a)" transform="rotate(-3 158 50)">a</text>
+    <!-- w -->
+    <text x="180" y="69" fill="url(#grad-w)" transform="rotate(4 205 50)">w</text>
+
+    <!-- REALM -->
+    <!-- R -->
+    <text x="250" y="68" fill="url(#grad-R)" transform="rotate(-4 270 50)">R</text>
+    <!-- e -->
+    <text x="303" y="69" fill="url(#grad-e)" transform="rotate(3 318 50)">e</text>
+    <!-- a -->
+    <text x="340" y="68" fill="url(#grad-a2)" transform="rotate(-3 358 50)">a</text>
+    <!-- l -->
+    <text x="382" y="67" fill="url(#grad-l)" transform="rotate(2 390 50)">l</text>
+    <!-- m -->
+    <text x="405" y="70" fill="url(#grad-m)" transform="rotate(-4 430 50)">m</text>
+  </g>
+
+  <!-- Highlights overlay for cartoon sheen -->
+  <ellipse cx="66" cy="36" rx="4.5" ry="3" class="highlight" transform="rotate(-20 66 36)" />
+  <ellipse cx="156" cy="46" rx="3.5" ry="2.5" class="highlight" />
+  <ellipse cx="266" cy="36" rx="4.5" ry="3" class="highlight" transform="rotate(-20 266 36)" />
+  <ellipse cx="355" cy="46" rx="3.5" ry="2.5" class="highlight" />
+  <ellipse cx="420" cy="48" rx="4" ry="2.5" class="highlight" />
+
+  <!-- Stars / Dots -->
+  <circle cx="236" cy="22" r="3.5" fill="#ffdd59" stroke="#18192b" stroke-width="2"/>
+  <circle cx="462" cy="30" r="4.5" fill="#2ed573" stroke="#18192b" stroke-width="2"/>
+  <circle cx="45" cy="82" r="3" fill="#00d2d3" stroke="#18192b" stroke-width="2"/>
+</svg>

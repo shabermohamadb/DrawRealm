@@ -1,0 +1,23 @@
+{
+  "name": "drawrealm",
+  "version": "1.0.0",
+  "description": "DrawRealm - Standalone multiplayer drawing and guessing game",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "test": "node test/e2e_5players_production.js",
+    "test:supabase": "node test/e2e_supabase.js",
+    "test:all": "node test/e2e_5players_production.js && node test/e2e_supabase.js && node test/e2e.js",
+    "test:browser": "node test/e2e.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "dotenv": "^18.0.4",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}
