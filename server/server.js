@@ -325,6 +325,33 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("evolution:unequip_power", (data) => {
+    try {
+      const session = roomManager.getSocketSession(socket);
+      if (!session || !session.room || !session.player) return;
+      if (session.room.evolution) {
+        const powerId = typeof data === "object" ? data.powerId : data;
+        session.room.evolution.unequipPower(session.player, powerId);
+      }
+    } catch (err) {
+      console.error("Error unequipping evolution power:", err);
+    }
+  });
+
+  socket.on("evolution:equip_power", (data) => {
+    try {
+      const session = roomManager.getSocketSession(socket);
+      if (!session || !session.room || !session.player) return;
+      if (session.room.evolution) {
+        const powerId = typeof data === "object" ? data.powerId : data;
+        const slot = typeof data === "object" ? data.slot : -1;
+        session.room.evolution.equipPower(session.player, powerId, slot);
+      }
+    } catch (err) {
+      console.error("Error equipping evolution power:", err);
+    }
+  });
+
   socket.on("evolution:test_add_xp", (amount) => {
     try {
       const session = roomManager.getSocketSession(socket);

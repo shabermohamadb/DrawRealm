@@ -120,6 +120,7 @@
     sock.on("evolution:pattern_sense", onPatternSense);
     sock.on("evolution:color_burst", onColorBurst);
     sock.on("evolution:perfect_line", onPerfectLine);
+    sock.on("evolution:power_used", onEvolutionPowerUsed);
     sock.on("evolution:announcement", (data) => {
       if (data && data.msg) appendSystemChatMessage(data.msg, data.color);
     });
@@ -202,17 +203,25 @@
 
     // 3. Render Normal Power Slots (Slots 0, 1, 2)
     const normalSlots = dock.querySelectorAll(".evolution-slot:not(.evolution-slot-ultimate)");
+    const maxPowers = typeof state.maxPowers === "number" ? state.maxPowers : 3;
     normalSlots.forEach((slotEl, idx) => {
       const btn = slotEl.querySelector(".evolution-power-btn");
-      const power = state.equippedPowers[idx] || null;
-      renderPowerButton(btn, power, idx + 1, state.cooldowns);
+      const power = (state.equippedPowers && state.equippedPowers[idx]) || null;
+      const isLocked = idx >= maxPowers;
+      renderPowerButton(btn, power, idx + 1, state.cooldowns, false, isLocked, idx);
     });
 
     // 4. Render Ultimate Slot (Slot 3)
     const ultSlot = dock.querySelector(".evolution-slot-ultimate");
     if (ultSlot) {
       const btn = ultSlot.querySelector(".evolution-power-btn");
-      renderPowerButton(btn, state.ultimatePower, 4, state.cooldowns, true);
+      const isLocked = !state.hasUltimate;
+      renderPowerButton(btn, state.ultimatePower, 4, state.cooldowns, true, isLocked, 3);
+    }
+
+    // Refresh active tooltip if currently open
+    if (activeTooltipBtn && document.body.contains(activeTooltipBtn)) {
+      showPowerTooltip(activeTooltipBtn);
     }
 
     // 5. Check Pending Draft
@@ -222,27 +231,41 @@
     startCooldownTicker();
   }
 
-  function renderPowerButton(btn, power, keyNum, cooldowns, isUlt = false) {
+  function renderPowerButton(btn, power, keyNum, cooldowns, isUlt = false, isLocked = false, slotIdx = 0) {
     if (!btn) return;
     const overlay = btn.querySelector(".cooldown-overlay");
     const iconEl = btn.querySelector(".power-icon");
     const nameEl = btn.querySelector(".power-name");
 
-    if (!power) {
-      btn.classList.add("empty");
+    btn.dataset.slotIdx = slotIdx;
+    btn.dataset.keyNum = keyNum;
+    btn.dataset.isUlt = isUlt ? "true" : "false";
+    btn.removeAttribute("data-tooltip");
+
+    btn.classList.remove("locked", "empty", "available", "on-cooldown");
+
+    if (isLocked) {
+      btn.classList.add("locked");
+      btn.dataset.slotState = "locked";
       btn.dataset.powerId = "";
-      btn.removeAttribute("data-tooltip");
       if (iconEl) iconEl.textContent = "";
-      if (nameEl) nameEl.textContent = isUlt ? "LOCKED" : "EMPTY";
+      if (nameEl) nameEl.textContent = "LOCKED";
       if (overlay) overlay.style.display = "none";
       return;
     }
 
-    btn.classList.remove("empty");
-    btn.dataset.powerId = power.id;
-    btn.dataset.tooltip = `${power.name.toUpperCase()} [${power.rarity.toUpperCase()}]\n${power.description}\nHotkey: [${keyNum}]`;
-    btn.dataset.tooltipdir = "N";
+    if (!power) {
+      btn.classList.add("empty");
+      btn.dataset.slotState = "empty";
+      btn.dataset.powerId = "";
+      if (iconEl) iconEl.textContent = "";
+      if (nameEl) nameEl.textContent = "EMPTY";
+      if (overlay) overlay.style.display = "none";
+      return;
+    }
 
+    btn.dataset.slotState = "equipped";
+    btn.dataset.powerId = power.id;
     if (iconEl) iconEl.textContent = "";
     if (nameEl) nameEl.textContent = power.name;
 
@@ -254,7 +277,7 @@
         overlay.textContent = `${cdSec}s`;
       }
     } else {
-      btn.classList.remove("on-cooldown");
+      btn.classList.add("available");
       if (overlay) overlay.style.display = "none";
     }
   }
@@ -273,23 +296,31 @@
         }
       }
 
-      // Update cooldown UI overlays
-      const buttons = document.querySelectorAll(".evolution-power-btn:not(.empty)");
+      // Update cooldown UI overlays and classes
+      const buttons = document.querySelectorAll(".evolution-power-btn");
       buttons.forEach(btn => {
+        if (btn.dataset.slotState !== "equipped") return;
         const pId = btn.dataset.powerId;
         const overlay = btn.querySelector(".cooldown-overlay");
-        const remaining = evolutionState.cooldowns[pId] || 0;
+        const remaining = (evolutionState.cooldowns && evolutionState.cooldowns[pId]) || 0;
         if (remaining > 0) {
           btn.classList.add("on-cooldown");
+          btn.classList.remove("available");
           if (overlay) {
             overlay.style.display = "flex";
             overlay.textContent = `${remaining}s`;
           }
         } else {
           btn.classList.remove("on-cooldown");
+          btn.classList.add("available");
           if (overlay) overlay.style.display = "none";
         }
       });
+
+      // If active tooltip is open for an equipped power on cooldown, refresh display
+      if (activeTooltipBtn && activeTooltipBtn.dataset.slotState === "equipped") {
+        showPowerTooltip(activeTooltipBtn);
+      }
 
       if (!hasActiveCd) {
         clearInterval(cooldownInterval);
@@ -341,13 +372,341 @@
     }
   }
 
+  const LEVEL_TITLES = [
+    "Human", "Scout", "Swift", "Creator", "Mind Reader",
+    "Guardian", "Berserker", "Manipulator", "Elite", "Master", "Evolution"
+  ];
+
+  function getLevelTitle(lvl) {
+    return LEVEL_TITLES[lvl] || "Unknown";
+  }
+
+  function getBranchBadge(branch, powerId) {
+    if (!branch) return "EVO";
+    const b = branch.toLowerCase();
+    if (b === "attack") return "ATK";
+    if (b === "creator") return "CRE";
+    if (b === "defense") return "DEF";
+    if (b === "intelligence") return "INT";
+    if (b === "chaos") return "CHA";
+    if (b === "ultimate") return "ULT";
+    return "EVO";
+  }
+
+  function formatBranchName(branch) {
+    if (!branch) return "General";
+    return branch.charAt(0).toUpperCase() + branch.slice(1).toLowerCase();
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/[&<>"']/g, m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    })[m]);
+  }
+
+  let activeTooltipBtn = null;
+  let tooltipHideTimeout = null;
+
+  function createTooltipElement() {
+    let tt = document.getElementById("evolution-power-tooltip");
+    if (!tt) {
+      tt = document.createElement("div");
+      tt.id = "evolution-power-tooltip";
+      document.body.appendChild(tt);
+
+      tt.addEventListener("mouseenter", () => {
+        if (tooltipHideTimeout) {
+          clearTimeout(tooltipHideTimeout);
+          tooltipHideTimeout = null;
+        }
+      });
+      tt.addEventListener("mouseleave", () => {
+        hidePowerTooltip(150);
+      });
+    }
+    return tt;
+  }
+
+  function createContextMenuElement() {
+    let menu = document.getElementById("evolution-context-menu");
+    if (!menu) {
+      menu = document.createElement("div");
+      menu.id = "evolution-context-menu";
+      menu.innerHTML = `<div class="context-menu-item" id="btn-context-unequip">UNEQUIP POWER</div>`;
+      document.body.appendChild(menu);
+
+      const unequipItem = menu.querySelector("#btn-context-unequip");
+      unequipItem.addEventListener("click", () => {
+        const powerId = menu.dataset.powerId;
+        if (powerId && socket) {
+          socket.emit("evolution:unequip_power", { powerId });
+        }
+        hideContextMenu();
+        hidePowerTooltip(0);
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target)) hideContextMenu();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") hideContextMenu();
+      });
+    }
+    return menu;
+  }
+
+  function showPowerTooltip(btn) {
+    if (!evolutionState) return;
+    const tt = createTooltipElement();
+    activeTooltipBtn = btn;
+    if (tooltipHideTimeout) {
+      clearTimeout(tooltipHideTimeout);
+      tooltipHideTimeout = null;
+    }
+
+    const slotState = btn.dataset.slotState || (btn.classList.contains("empty") ? "empty" : btn.classList.contains("locked") ? "locked" : "equipped");
+    const slotIdx = parseInt(btn.dataset.slotIdx, 10);
+    const keyNum = btn.dataset.keyNum || (slotIdx + 1);
+    const isUlt = btn.dataset.isUlt === "true";
+    const powerId = btn.dataset.powerId;
+
+    let contentHtml = "";
+
+    if (slotState === "locked") {
+      const reqLvl = isUlt ? 7 : (slotIdx + 1);
+      const reqTitle = getLevelTitle(reqLvl);
+      contentHtml = `
+        <div class="evo-tt-header">
+          <span class="evo-tt-name">LOCKED ${isUlt ? "ULTIMATE " : ""}SLOT</span>
+          <span class="evo-tt-rarity" style="border-color:#94a3b8;color:#64748b">LOCKED</span>
+        </div>
+        <div class="evo-tt-desc">
+          Unlocks at Evolution Level <b>${reqLvl}</b> (${reqTitle}).
+        </div>
+        <div class="evo-tt-meta">
+          <div class="evo-tt-meta-item"><span>Slot Hotkey:</span> <span class="val">[${keyNum}]</span></div>
+          <div class="evo-tt-meta-item"><span>Requirement:</span> <span class="val">Level ${reqLvl}</span></div>
+        </div>
+      `;
+    } else if (slotState === "empty") {
+      const unlocked = evolutionState.unlockedPowers || [];
+      const equippedIds = new Set((evolutionState.equippedPowers || []).map(p => p.id));
+      if (evolutionState.ultimatePower) equippedIds.add(evolutionState.ultimatePower.id);
+
+      const availableToEquip = unlocked.filter(p => {
+        if (isUlt) return p.isUltimate && !equippedIds.has(p.id);
+        return !p.isUltimate && !equippedIds.has(p.id);
+      });
+
+      contentHtml = `
+        <div class="evo-tt-header">
+          <span class="evo-tt-name">EMPTY ${isUlt ? "ULTIMATE " : ""}SLOT</span>
+          <span class="evo-tt-rarity" style="border-color:#3b82f6;color:#2563eb">EMPTY</span>
+        </div>
+        <div class="evo-tt-desc">No power equipped in this slot. Hotkey: <b>[${keyNum}]</b></div>
+      `;
+
+      if (availableToEquip.length > 0) {
+        contentHtml += `
+          <div style="font-size:10px;font-weight:900;color:#1e293b;margin-top:6px;margin-bottom:3px;letter-spacing:0.5px;">CHOOSE A POWER TO EQUIP:</div>
+          <div class="evo-tt-equip-list">
+        `;
+        availableToEquip.forEach(p => {
+          const rColor = getRarityColor(p.rarity);
+          const bBadge = getBranchBadge(p.branch, p.id);
+          contentHtml += `
+            <div class="evo-tt-equip-item" data-power-id="${p.id}" data-slot-idx="${slotIdx}">
+              <span><b style="color:${rColor}">[${bBadge}]</b> ${escapeHtml(p.name)}</span>
+              <span style="font-size:10px;color:#64748b">${p.cooldown || 40}s</span>
+            </div>
+          `;
+        });
+        contentHtml += `</div>`;
+      } else {
+        contentHtml += `
+          <div style="font-size:11px;font-style:italic;color:#64748b;margin-top:4px;">
+            Level up to draft new powers from Evolution choices!
+          </div>
+        `;
+      }
+    } else {
+      // Equipped power
+      let power = null;
+      if (isUlt && evolutionState.ultimatePower && evolutionState.ultimatePower.id === powerId) {
+        power = evolutionState.ultimatePower;
+      } else if (Array.isArray(evolutionState.equippedPowers)) {
+        power = evolutionState.equippedPowers.find(p => p.id === powerId);
+      }
+      if (!power && Array.isArray(evolutionState.unlockedPowers)) {
+        power = evolutionState.unlockedPowers.find(p => p.id === powerId);
+      }
+
+      if (!power) return;
+
+      const rColor = getRarityColor(power.rarity);
+      const remainingCd = (evolutionState.cooldowns && evolutionState.cooldowns[power.id]) || 0;
+      const cdText = remainingCd > 0 ? `${remainingCd}s remaining (${power.cooldown || 40}s base)` : `${power.cooldown || 40}s`;
+
+      contentHtml = `
+        <div class="evo-tt-header">
+          <span class="evo-tt-name">${escapeHtml(power.name).toUpperCase()}</span>
+          <span class="evo-tt-rarity" style="border-color:${rColor};color:${rColor}">${power.rarity.toUpperCase()}</span>
+        </div>
+        <div class="evo-tt-desc">${escapeHtml(power.description)}</div>
+        <div class="evo-tt-meta">
+          <div class="evo-tt-meta-item"><span>Branch:</span> <span class="val">${formatBranchName(power.branch)}</span></div>
+          <div class="evo-tt-meta-item"><span>Cooldown:</span> <span class="val" style="${remainingCd > 0 ? 'color:#dc2626' : ''}">${cdText}</span></div>
+          <div class="evo-tt-meta-item"><span>Hotkey:</span> <span class="val">[Key: ${keyNum}]</span></div>
+        </div>
+        <button type="button" class="evo-tt-unequip-btn" data-power-id="${power.id}">UNEQUIP POWER</button>
+      `;
+    }
+
+    tt.innerHTML = contentHtml;
+
+    tt.querySelectorAll(".evo-tt-equip-item").forEach(item => {
+      item.addEventListener("click", () => {
+        const pId = item.dataset.powerId;
+        const sIdx = parseInt(item.dataset.slotIdx, 10);
+        if (pId && socket) {
+          socket.emit("evolution:equip_power", { powerId: pId, slot: sIdx });
+        }
+        hidePowerTooltip(0);
+      });
+    });
+
+    const unequipBtn = tt.querySelector(".evo-tt-unequip-btn");
+    if (unequipBtn) {
+      unequipBtn.addEventListener("click", () => {
+        const pId = unequipBtn.dataset.powerId;
+        if (pId && socket) {
+          socket.emit("evolution:unequip_power", { powerId: pId });
+        }
+        hidePowerTooltip(0);
+      });
+    }
+
+    positionTooltip(tt, btn);
+    tt.classList.add("visible");
+  }
+
+  function positionTooltip(tt, btn) {
+    const btnRect = btn.getBoundingClientRect();
+    const ttRect = tt.getBoundingClientRect();
+
+    let left = btnRect.left + (btnRect.width / 2) - (ttRect.width / 2);
+    left = Math.max(10, Math.min(window.innerWidth - ttRect.width - 10, left));
+
+    let top = btnRect.top - ttRect.height - 10;
+    if (top < 10) {
+      top = btnRect.bottom + 10;
+    }
+
+    tt.style.left = `${left}px`;
+    tt.style.top = `${top}px`;
+  }
+
+  function hidePowerTooltip(delay = 150) {
+    if (tooltipHideTimeout) clearTimeout(tooltipHideTimeout);
+    tooltipHideTimeout = setTimeout(() => {
+      const tt = document.getElementById("evolution-power-tooltip");
+      if (tt) {
+        tt.classList.remove("visible");
+      }
+      activeTooltipBtn = null;
+    }, delay);
+  }
+
+  function showContextMenu(e, btn) {
+    e.preventDefault();
+    if (!btn || btn.dataset.slotState !== "equipped") return;
+    const powerId = btn.dataset.powerId;
+    if (!powerId) return;
+
+    hidePowerTooltip(0);
+    const menu = createContextMenuElement();
+    menu.dataset.powerId = powerId;
+    menu.style.display = "block";
+
+    let left = e.clientX;
+    let top = e.clientY;
+    const menuWidth = 150;
+    const menuHeight = 40;
+    if (left + menuWidth > window.innerWidth) left = window.innerWidth - menuWidth - 8;
+    if (top + menuHeight > window.innerHeight) top = window.innerHeight - menuHeight - 8;
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  }
+
+  function hideContextMenu() {
+    const menu = document.getElementById("evolution-context-menu");
+    if (menu) menu.style.display = "none";
+  }
+
+  function onEvolutionPowerUsed(data) {
+    if (!data || !data.playerId) return;
+
+    let playerEl = document.querySelector(`.player[data-player-id="${data.playerId}"]`);
+    if (!playerEl) {
+      const allPlayers = document.querySelectorAll("#game-players .player");
+      for (const p of allPlayers) {
+        const nameEl = p.querySelector(".player-name");
+        if (nameEl && nameEl.textContent.trim().toLowerCase().includes(data.playerName.toLowerCase())) {
+          playerEl = p;
+          break;
+        }
+      }
+    }
+    if (!playerEl) return;
+
+    let stack = playerEl.querySelector(".player-power-feedback-stack");
+    if (!stack) {
+      stack = document.createElement("div");
+      stack.className = "player-power-feedback-stack";
+      playerEl.appendChild(stack);
+    }
+
+    while (stack.children.length >= 3) {
+      stack.firstElementChild.remove();
+    }
+
+    const branchBadge = getBranchBadge(data.powerBranch, data.powerId);
+    const rarityColor = getRarityColor(data.powerRarity);
+
+    const card = document.createElement("div");
+    card.className = "player-power-feedback-item";
+    card.style.borderLeftColor = rarityColor;
+    card.innerHTML = `
+      <span class="feedback-badge" style="color:${rarityColor}">[${branchBadge}]</span>
+      <span class="feedback-text">USED: <b>${escapeHtml(data.powerName).toUpperCase()}</b></span>
+    `;
+
+    stack.appendChild(card);
+
+    setTimeout(() => {
+      card.classList.add("fade-out");
+      setTimeout(() => {
+        card.remove();
+        if (stack && stack.children.length === 0) {
+          stack.remove();
+        }
+      }, 250);
+    }, 1200);
+  }
+
   function activatePowerBySlot(slotNum) {
     if (!isEvolutionActive || !socket) return;
     const dock = document.getElementById("evolution-dock");
     if (!dock) return;
 
     const btn = dock.querySelector(`.evolution-power-btn[data-key="${slotNum}"]`);
-    if (!btn || btn.classList.contains("empty") || btn.classList.contains("on-cooldown")) return;
+    if (!btn || btn.classList.contains("empty") || btn.classList.contains("locked") || btn.classList.contains("on-cooldown")) return;
 
     const pId = btn.dataset.powerId;
     if (pId) {
@@ -750,13 +1109,24 @@
     }
   }
 
-  // Click listeners for power buttons & DrawRealm setup
+  // Click listeners for power buttons, tooltips, context menu & DrawRealm setup
   function init() {
+    createTooltipElement();
+    createContextMenuElement();
+
     document.querySelectorAll(".evolution-power-btn").forEach(btn => {
       btn.addEventListener("click", () => {
-        const slot = parseInt(btn.dataset.key);
-        if (slot) activatePowerBySlot(slot);
+        const slot = parseInt(btn.dataset.key || btn.dataset.keyNum, 10);
+        if (btn.classList.contains("empty") || btn.classList.contains("locked")) {
+          showPowerTooltip(btn);
+        } else if (slot) {
+          activatePowerBySlot(slot);
+        }
       });
+
+      btn.addEventListener("mouseenter", () => showPowerTooltip(btn));
+      btn.addEventListener("mouseleave", () => hidePowerTooltip(150));
+      btn.addEventListener("contextmenu", (e) => showContextMenu(e, btn));
     });
 
     setupDrawRealmModals();

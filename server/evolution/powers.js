@@ -6,7 +6,7 @@ const { BRANCHES, RARITIES } = require("./config");
 
 const POWERS = {
   // ==========================================
-  // ️ ATTACK POWERS (5)
+  //  ATTACK POWERS (5)
   // ==========================================
   score_surge: {
     id: "score_surge",
@@ -34,7 +34,7 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "EPIC",
     cooldown: 75,
-    icon: "️",
+    icon: "",
     description: "Steal up to 40 points from the current 1st-place player (blocked by shields).",
     isUltimate: false
   },
@@ -44,7 +44,7 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "EPIC",
     cooldown: 70,
-    icon: "️",
+    icon: "",
     description: "Next two successful guesses receive +30% bonus points.",
     isUltimate: false
   },
@@ -68,7 +68,7 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "COMMON",
     cooldown: 40,
-    icon: "️",
+    icon: "",
     description: "Reveals one random hidden letter specifically for you.",
     isUltimate: false
   },
@@ -188,7 +188,7 @@ const POWERS = {
   },
 
   // ==========================================
-  // ️ DEFENSE POWERS (5)
+  //  DEFENSE POWERS (5)
   // ==========================================
   shield: {
     id: "shield",
@@ -196,7 +196,7 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "COMMON",
     cooldown: 45,
-    icon: "️",
+    icon: "",
     description: "Shields you from one negative event or incoming score steal.",
     isUltimate: false
   },
@@ -206,7 +206,7 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "LEGENDARY",
     cooldown: 90,
-    icon: "️",
+    icon: "",
     description: "Protects against one score loss or negative penalty once per match.",
     isUltimate: false
   },
@@ -236,7 +236,7 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "EPIC",
     cooldown: 50,
-    icon: "️",
+    icon: "",
     description: "Renders you immune to enemy modifiers (Reverse Canvas, Chaos Brush).",
     isUltimate: false
   },
@@ -270,7 +270,7 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "EPIC",
     cooldown: 50,
-    icon: "️",
+    icon: "",
     description: "Locks drawer's brush size to extra large for 8 seconds.",
     isUltimate: false
   },
@@ -280,7 +280,7 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "UNCOMMON",
     cooldown: 45,
-    icon: "️",
+    icon: "",
     description: "Slightly adjusts the round timer by ±5 seconds (strictly bounded).",
     isUltimate: false
   },
@@ -290,7 +290,7 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "LEGENDARY",
     cooldown: 70,
-    icon: "️",
+    icon: "",
     description: "Shows a faint, faded preview of the previous round's drawing.",
     isUltimate: false
   },
@@ -388,7 +388,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "️",
+    icon: "",
     description: "Reveals 3 key letters and category without solving the word automatically.",
     isUltimate: true
   },
@@ -408,7 +408,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "️",
+    icon: "",
     description: "Global party event: +200 bonus pool, +10s clock extension, double XP for all.",
     isUltimate: true
   }

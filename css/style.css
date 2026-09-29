@@ -963,3 +963,277 @@
 .btn-evo-play:hover {
   background: #7138be;
 }
+
+/* ========================================================
+   EVOLUTION POWER UI / UX IMPROVEMENTS (TOOLTIP, CONTEXT MENU, FEEDBACK)
+   ======================================================== */
+
+/* Power Slots Visual States */
+.evolution-power-btn.locked {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  border-bottom-color: #94a3b8;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+.evolution-power-btn.locked .power-name {
+  color: #94a3b8;
+  font-size: 10px;
+}
+.evolution-power-btn.empty {
+  background-color: #ffffff;
+  border-style: dashed;
+  border-color: #94a3b8;
+  border-bottom-color: #64748b;
+  color: #64748b;
+  cursor: pointer;
+  opacity: 0.9;
+}
+.evolution-power-btn.empty:hover {
+  background-color: #f8fafc;
+  border-color: #3b82f6;
+  border-bottom-color: #1d4ed8;
+}
+.evolution-power-btn.empty .power-name {
+  color: #64748b;
+  font-size: 10px;
+}
+.evolution-power-btn.available {
+  background-color: #ffffff;
+  border: 2px solid #22c55e;
+  border-bottom: 3px solid #16a34a;
+}
+.evolution-power-btn.available:hover {
+  background-color: #f0fdf4;
+  transform: translateY(-1px);
+}
+.evolution-power-btn.ultimate.available {
+  background-color: #fff1f2;
+  border: 2px solid #ef4444;
+  border-bottom: 3px solid #b91c1c;
+}
+.evolution-power-btn.ultimate.available:hover {
+  background-color: #fee2e2;
+  transform: translateY(-1px);
+}
+
+/* Retro Paper Power Hover Tooltip */
+#evolution-power-tooltip {
+  position: fixed;
+  z-index: 10005;
+  background-color: #fffdf0;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0px #000000;
+  padding: 8px 12px;
+  font-family: Nunito, sans-serif;
+  color: #111827;
+  max-width: 270px;
+  min-width: 200px;
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  user-select: none;
+}
+#evolution-power-tooltip.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+#evolution-power-tooltip .evo-tt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid #000000;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+#evolution-power-tooltip .evo-tt-name {
+  font-size: 13px;
+  font-weight: 900;
+  color: #000000;
+  letter-spacing: 0.5px;
+}
+#evolution-power-tooltip .evo-tt-rarity {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 6px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  text-transform: uppercase;
+  background-color: #ffffff;
+}
+#evolution-power-tooltip .evo-tt-desc {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+#evolution-power-tooltip .evo-tt-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4b5563;
+  margin-bottom: 6px;
+}
+#evolution-power-tooltip .evo-tt-meta-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#evolution-power-tooltip .evo-tt-meta-item span.val {
+  color: #111827;
+  font-weight: 800;
+}
+#evolution-power-tooltip .evo-tt-unequip-btn {
+  width: 100%;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 2px solid #000000;
+  border-radius: 3px;
+  box-shadow: 2px 2px 0px #000000;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 60ms ease, background 80ms ease;
+  margin-top: 4px;
+}
+#evolution-power-tooltip .evo-tt-unequip-btn:hover {
+  background: #fecaca;
+}
+#evolution-power-tooltip .evo-tt-unequip-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px #000000;
+}
+#evolution-power-tooltip .evo-tt-equip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+  margin-top: 4px;
+  padding-right: 2px;
+}
+#evolution-power-tooltip .evo-tt-equip-item {
+  background: #ffffff;
+  border: 1.5px solid #000000;
+  border-radius: 3px;
+  box-shadow: 1px 1px 0px #000000;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 80ms ease, transform 60ms ease;
+}
+#evolution-power-tooltip .evo-tt-equip-item:hover {
+  background: #e0e7ff;
+  border-color: #1d4ed8;
+}
+#evolution-power-tooltip .evo-tt-equip-item:active {
+  transform: translate(1px, 1px);
+}
+
+/* Retro Right-Click Context Menu */
+#evolution-context-menu {
+  position: fixed;
+  z-index: 10010;
+  background-color: #fffdf0;
+  border: 2px solid #000000;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0px #000000;
+  padding: 4px;
+  font-family: Nunito, sans-serif;
+  user-select: none;
+  display: none;
+}
+#evolution-context-menu .context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #b91c1c;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 80ms ease;
+}
+#evolution-context-menu .context-menu-item:hover {
+  background-color: #fee2e2;
+}
+
+/* Power Use Notification Cards under Member List */
+.player-power-feedback-stack {
+  position: absolute;
+  left: 4px;
+  top: 36px;
+  width: calc(100% - 8px);
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.player-power-feedback-item {
+  background: #fffdf0;
+  border: 2px solid #000000;
+  border-left: 4px solid #3b82f6;
+  border-radius: 3px;
+  box-shadow: 2px 2px 0px #000000;
+  padding: 2px 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: Nunito, sans-serif;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #111827;
+  animation: powerFeedbackPop 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-power-feedback-item.fade-out {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.95);
+}
+@keyframes powerFeedbackPop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.player-power-feedback-item .feedback-badge {
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.player-power-feedback-item .feedback-text {
+  font-weight: 700;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-power-feedback-item .feedback-text b {
+  font-weight: 900;
+  color: #000000;
+}
+

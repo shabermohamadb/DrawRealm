@@ -36,9 +36,22 @@ class EvolutionManager {
     }
     profile.level = level;
 
+    // Ensure all equipped powers are stored in unlockedPowers
+    for (const p of profile.equippedPowers) {
+      if (!profile.unlockedPowers.includes(p)) {
+        profile.unlockedPowers.push(p);
+      }
+    }
+    if (profile.ultimatePower && !profile.unlockedPowers.includes(profile.ultimatePower)) {
+      profile.unlockedPowers.push(profile.ultimatePower);
+    }
+
     // Default basic power for level >= 1 if none equipped
     if (level >= 1 && profile.equippedPowers.length === 0) {
       profile.equippedPowers.push("score_surge");
+      if (!profile.unlockedPowers.includes("score_surge")) {
+        profile.unlockedPowers.push("score_surge");
+      }
     }
 
     const state = {
@@ -84,6 +97,7 @@ class EvolutionManager {
 
     const nextLevelData = EVOLUTION_LEVELS[Math.min(state.level + 1, EVOLUTION_LEVELS.length - 1)];
     const currentLevelData = EVOLUTION_LEVELS[state.level];
+    const profile = storage.getProfile(player.name);
 
     // Format cooldowns as seconds remaining
     const now = Date.now();
@@ -101,8 +115,11 @@ class EvolutionManager {
       xp: state.xp,
       currentLevelXp: currentLevelData.xpRequired,
       nextLevelXp: nextLevelData.xpRequired,
+      maxPowers: currentLevelData.maxPowers || 0,
+      hasUltimate: !!currentLevelData.hasUltimate,
       equippedPowers: state.equippedPowers.map(pId => POWERS[pId] || null).filter(Boolean),
       ultimatePower: state.ultimatePower ? (POWERS[state.ultimatePower] || null) : null,
+      unlockedPowers: (profile.unlockedPowers || []).map(pId => POWERS[pId] || null).filter(Boolean),
       cooldowns: cooldownsObj,
       streak: state.streak,
       buffs: {
@@ -170,6 +187,15 @@ class EvolutionManager {
     if (newLevel > oldLevel) {
       state.level = newLevel;
       const levelData = EVOLUTION_LEVELS[newLevel];
+
+      // Ensure starter power is equipped and unlocked when reaching level >= 1
+      if (profile.equippedPowers.length === 0) {
+        profile.equippedPowers.push("score_surge");
+        state.equippedPowers.push("score_surge");
+      }
+      if (!profile.unlockedPowers.includes("score_surge")) {
+        profile.unlockedPowers.push("score_surge");
+      }
 
       // Generate 3 draft choices
       const allCurrent = [...state.equippedPowers];
@@ -404,7 +430,7 @@ class EvolutionManager {
     // ==========================================
     // EXECUTE POWER EFFECTS
     // ==========================================
-    let broadcastMsg = `${player.name} activated ${power.icon} ${power.name}!`;
+    let broadcastMsg = `${player.name} activated ${power.name}!`;
     let privateMsg = "";
 
     switch (power.id) {
@@ -428,7 +454,7 @@ class EvolutionManager {
           const targetState = this.players.get(target.id);
           if (targetState && (targetState.buffs.shield || targetState.buffs.scoreLockUntil > now)) {
             if (targetState.buffs.shield) targetState.buffs.shield = false;
-            broadcastMsg = `️ ${target.name}'s Shield blocked ${player.name}'s Score Steal!`;
+            broadcastMsg = ` ${target.name}'s Shield blocked ${player.name}'s Score Steal!`;
             if (targetState) {
               const targetProfile = storage.getProfile(target.name);
               targetProfile.stats.shieldsUsed = (targetProfile.stats.shieldsUsed || 0) + 1;
@@ -438,7 +464,7 @@ class EvolutionManager {
             const stealAmount = Math.min(40, target.score);
             target.score -= stealAmount;
             player.score += stealAmount;
-            broadcastMsg = `️ ${player.name} stole ${stealAmount} points from ${target.name}!`;
+            broadcastMsg = ` ${player.name} stole ${stealAmount} points from ${target.name}!`;
           }
         }
         break;
@@ -567,13 +593,13 @@ class EvolutionManager {
         state.buffs.shield = true;
         profile.stats.shieldsUsed = (profile.stats.shieldsUsed || 0) + 1;
         checkAchievements(profile);
-        privateMsg = "️ Shield activated: Protected against the next steal or penalty.";
+        privateMsg = " Shield activated: Protected against the next steal or penalty.";
         break;
 
       case "second_life":
         state.buffs.shield = true;
         state.buffs.scoreLockUntil = now + 30000;
-        privateMsg = "️ Second Life: Score locked and shield granted for 30 seconds.";
+        privateMsg = " Second Life: Score locked and shield granted for 30 seconds.";
         break;
 
       case "time_guard":
@@ -590,7 +616,7 @@ class EvolutionManager {
 
       case "freeze_guard":
         state.buffs.freezeGuardUntil = now + 50000;
-        privateMsg = "️ Freeze Guard: Immune to enemy chaos modifiers for 50s.";
+        privateMsg = " Freeze Guard: Immune to enemy chaos modifiers for 50s.";
         break;
 
       // --- CHAOS ---
@@ -617,7 +643,7 @@ class EvolutionManager {
 
       case "chaos_brush":
         this.room.broadcastCustom("evolution:effect", { type: "chaos_brush", duration: 10 });
-        broadcastMsg = `️ Chaos Brush activated by ${player.name}: Maximum brush size locked for 10s!`;
+        broadcastMsg = ` Chaos Brush activated by ${player.name}: Maximum brush size locked for 10s!`;
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -625,7 +651,7 @@ class EvolutionManager {
       case "time_warp": {
         const delta = Math.random() < 0.5 ? 5 : -5;
         game.timeLeft = Math.max(15, Math.min(90, game.timeLeft + delta));
-        broadcastMsg = `️ ${player.name} warped time by ${delta > 0 ? "+5" : "-5"} seconds!`;
+        broadcastMsg = ` ${player.name} warped time by ${delta > 0 ? "+5" : "-5"} seconds!`;
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -633,7 +659,7 @@ class EvolutionManager {
 
       case "ghost_canvas":
         this.room.broadcastCustom("evolution:effect", { type: "ghost_canvas", duration: 12 });
-        broadcastMsg = `️ Ghost Canvas summoned by ${player.name}!`;
+        broadcastMsg = ` Ghost Canvas summoned by ${player.name}!`;
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -706,7 +732,7 @@ class EvolutionManager {
         const len = secret.length;
         const chars = secret.split("").filter(c => c !== " ");
         const revealed = chars.slice(0, 3).join(", ").toUpperCase();
-        privateMsg = `️ OMNISCIENCE: Letters revealed: [${revealed}], Total length: ${len}`;
+        privateMsg = ` OMNISCIENCE: Letters revealed: [${revealed}], Total length: ${len}`;
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -726,7 +752,7 @@ class EvolutionManager {
           p.score += 50;
         }
         game.timeLeft = Math.min(90, game.timeLeft + 10);
-        broadcastMsg = `️ APOCALYPSE EVENT! +50 points to all players & +10s clock extension!`;
+        broadcastMsg = ` APOCALYPSE EVENT! +50 points to all players & +10s clock extension!`;
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -754,6 +780,106 @@ class EvolutionManager {
       });
     }
 
+    // Broadcast verified power used event for client UI feedback under player's card
+    this.room.broadcastCustom("evolution:power_used", {
+      playerId: player.id,
+      playerName: player.name,
+      powerId: power.id,
+      powerName: power.name,
+      powerRarity: power.rarity,
+      powerBranch: power.branch
+    });
+
+    this.syncPlayerState(player);
+    return { success: true };
+  }
+
+  /**
+   * Unequips an equipped power, moving it to unequipped collection
+   */
+  unequipPower(player, powerId) {
+    if (!this.isEvolutionMode() || !player) return { success: false, reason: "Invalid request" };
+    const state = this.players.get(player.id);
+    if (!state) return { success: false, reason: "Player state not found" };
+
+    const profile = storage.getProfile(player.name);
+
+    if (state.ultimatePower === powerId) {
+      state.ultimatePower = null;
+      profile.ultimatePower = null;
+    } else {
+      const idx = state.equippedPowers.indexOf(powerId);
+      if (idx !== -1) {
+        state.equippedPowers.splice(idx, 1);
+        profile.equippedPowers = [...state.equippedPowers];
+      }
+    }
+
+    // Ensure it remains in unlockedPowers collection
+    if (!profile.unlockedPowers.includes(powerId)) {
+      profile.unlockedPowers.push(powerId);
+    }
+
+    storage.save();
+    this.syncPlayerState(player);
+    return { success: true };
+  }
+
+  /**
+   * Equips an unlocked power into an available slot
+   */
+  equipPower(player, powerId, targetSlot = -1) {
+    if (!this.isEvolutionMode() || !player) return { success: false, reason: "Invalid request" };
+    const state = this.players.get(player.id);
+    if (!state) return { success: false, reason: "Player state not found" };
+
+    const power = POWERS[powerId];
+    if (!power) return { success: false, reason: "Invalid power" };
+
+    const profile = storage.getProfile(player.name);
+    const unlocked = profile.unlockedPowers || [];
+    if (!unlocked.includes(powerId)) {
+      return { success: false, reason: "Power not unlocked" };
+    }
+
+    const currentLevelData = EVOLUTION_LEVELS[state.level] || EVOLUTION_LEVELS[0];
+
+    if (power.isUltimate) {
+      if (!currentLevelData.hasUltimate) {
+        return { success: false, reason: "Ultimate slot locked until Level 7" };
+      }
+      state.ultimatePower = powerId;
+      profile.ultimatePower = powerId;
+    } else {
+      const maxSlots = currentLevelData.maxPowers || 0;
+      if (maxSlots <= 0) {
+        return { success: false, reason: "No power slots unlocked yet" };
+      }
+
+      // Check if already equipped
+      if (state.equippedPowers.includes(powerId)) {
+        return { success: false, reason: "Power already equipped" };
+      }
+
+      const slotIdx = parseInt(targetSlot, 10);
+      if (!isNaN(slotIdx) && slotIdx >= 0 && slotIdx < maxSlots) {
+        if (slotIdx < state.equippedPowers.length) {
+          state.equippedPowers[slotIdx] = powerId;
+        } else {
+          state.equippedPowers.push(powerId);
+        }
+      } else {
+        if (state.equippedPowers.length < maxSlots) {
+          state.equippedPowers.push(powerId);
+        } else {
+          // Replace first slot if full
+          state.equippedPowers[0] = powerId;
+        }
+      }
+      profile.equippedPowers = [...state.equippedPowers];
+    }
+
+    storage.save();
     this.syncPlayerState(player);
     return { success: true };
   }
