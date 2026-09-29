@@ -11,16 +11,25 @@ const db = require("./db/database");
 const supabaseService = require("./db/supabaseClient");
 
 const app = express();
+// Enable reverse proxy trust for Render, Cloudflare, Nginx SSL termination
+app.set("trust proxy", 1);
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
+  path: "/socket.io/",
   cors: {
-    origin: config.CORS_ORIGIN === "*" ? "*" : config.CORS_ORIGIN.split(",").map(s => s.trim()),
-    methods: ["GET", "POST"]
+    origin: (origin, callback) => {
+      // Allow all origins or reflected origin with credentials
+      callback(null, true);
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   },
   transports: ["websocket", "polling"],
   pingInterval: 10000,
   pingTimeout: 5000,
+  connectTimeout: 45000,
   maxHttpBufferSize: config.RATE_LIMITS.MAX_PAYLOAD_BYTES
 });
 
@@ -60,9 +69,16 @@ app.use(express.static(ROOT_DIR, {
 
 // API route for matchmaking and room join initialization
 app.post("/api/play", (req, res) => {
-  const host = `${req.protocol}://${req.get("host")}`;
-  // Respond with connection host address for socket.io client
-  res.type("text/plain").send(host);
+  try {
+    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+    const host = req.headers["x-forwarded-host"] || req.get("host");
+    const serverUrl = `${proto}://${host}`;
+    console.log(`[/api/play] Handshake requested by ${req.ip} -> returning ${serverUrl}`);
+    res.type("text/plain").send(serverUrl);
+  } catch (err) {
+    console.error("Error in /api/play:", err);
+    res.type("text/plain").send(`${req.protocol}://${req.get("host")}`);
+  }
 });
 
 // Live statistics for Home screen
@@ -88,11 +104,13 @@ app.get("/", (req, res) => {
 
 // Socket.IO event handling
 io.on("connection", (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
+  const clientIp = socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
+  console.log(`[Socket.IO] Client connected: ${socket.id} (transport: ${socket.conn.transport.name}, IP: ${clientIp})`);
 
   // 1. Login & Matchmaking handshake
   socket.on("login", (data = {}) => {
     try {
+      console.log(`[Socket.IO] Login packet from ${socket.id}: create=${data.create}, join=${data.join}, name=${data.name}`);
       // Payload validation
       if (!rateLimiter.validatePayloadSize(data)) {
         socket.emit("joinerr", 0);
@@ -365,7 +383,7 @@ function startServer(port) {
   server.removeAllListeners("error");
 
   server.once("listening", () => {
-    console.log(`DrawRealm Production server running at http://localhost:${port} [Env: ${config.NODE_ENV}]`);
+    console.log(`DrawRealm Production server running on 0.0.0.0:${port} [Env: ${config.NODE_ENV}]`);
   });
 
   server.once("error", (err) => {
@@ -378,7 +396,7 @@ function startServer(port) {
     }
   });
 
-  server.listen(port);
+  server.listen(port, "0.0.0.0");
 }
 
 startServer(PORT);

@@ -13,11 +13,19 @@
   if (window.io) {
     const origIo = window.io;
     window.io = function (uri, opts = {}) {
-      if (opts) {
-        if (!opts.path || opts.path === "//" || opts.path === "/" || opts.path.startsWith("//")) {
-          opts.path = "/socket.io/";
-        }
+      opts = opts || {};
+      opts.path = "/socket.io/";
+      if (!opts.transports) {
+        opts.transports = ["websocket", "polling"];
       }
+      if (typeof uri === "string") {
+        if (location.protocol === "https:" && uri.startsWith("http://")) {
+          uri = uri.replace(/^http:\/\//, "https://");
+        }
+      } else if (!uri) {
+        uri = location.origin;
+      }
+      console.log("[DrawRealm Client] Connecting socket to:", uri, "path:", opts.path);
       const sock = origIo.call(this, uri, opts);
       socket = sock;
       window.__skribblSocket = sock;
@@ -43,7 +51,17 @@
   }
 
   function attachSocketListeners(sock) {
-    // Intercept emit to automatically inject reconnectToken into login
+    sock.on("connect", () => {
+      console.log("[DrawRealm Client] Socket connected successfully! ID:", sock.id);
+    });
+    sock.on("connect_error", (err) => {
+      console.error("[DrawRealm Client] Socket connect_error:", err.message);
+    });
+    sock.on("disconnect", (reason) => {
+      console.warn("[DrawRealm Client] Socket disconnected:", reason);
+    });
+
+    // Intercept emit to automatically inject reconnectToken and pending room options into login
     const origEmit = sock.emit.bind(sock);
     sock.emit = function (evt, ...args) {
       if (evt === "login" && args[0] && typeof args[0] === "object") {
@@ -54,6 +72,10 @@
             if (sess && sess.token) {
               args[0].reconnectToken = sess.token;
             }
+          }
+          if (window.__drawrealmPendingRoom && args[0].create === 1) {
+            Object.assign(args[0], window.__drawrealmPendingRoom);
+            window.__drawrealmPendingRoom = null;
           }
         } catch (e) {}
       }
@@ -572,6 +594,18 @@
     const customWordsOnly = document.getElementById("create-check-customonly").checked;
 
     closeDrawRealmModal("drawrealm-modal-create");
+
+    // Store pending room options to pass into the login packet
+    window.__drawrealmPendingRoom = {
+      roomType,
+      mode,
+      slots,
+      rounds,
+      drawtime,
+      lang,
+      customWords,
+      customWordsOnly
+    };
 
     // Pre-populate settings onto room inputs
     const sSlots = document.getElementById("item-settings-slots");
