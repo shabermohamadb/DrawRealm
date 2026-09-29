@@ -49,6 +49,9 @@ app.get("/health", async (req, res) => {
   res.json({
     status: "ok",
     uptime: Math.round(process.uptime()),
+    rooms: roomManager.rooms.size,
+    players: roomManager.getTotalOnlinePlayers(),
+    activeGames: roomManager.getActiveGamesCount(),
     activeRooms: roomManager.rooms.size,
     onlinePlayers: roomManager.getTotalOnlinePlayers(),
     database: "connected",
@@ -129,10 +132,28 @@ io.on("connection", (socket) => {
       const isCreate = data.create === 1;
       const joinRoomId = (data.join && data.join !== 0 && data.join !== "0") ? String(data.join).trim() : null;
 
-      // Sanitize username
-      if (data.name) {
-        data.name = rateLimiter.sanitizeText(data.name, 24);
+      // Validate player name strictly (reject empty, spaces only, length < 2 or > 20, disallowed characters)
+      const rawName = (data && typeof data.name === "string") ? data.name : "";
+      const cleanName = rawName.trim();
+      const validNameRegex = /^[a-zA-Z0-9 _-]+$/;
+
+      if (!cleanName || cleanName.length < 2 || cleanName.length > 20 || !validNameRegex.test(cleanName)) {
+        let msg = "Please enter your player name.";
+        if (cleanName.length > 0 && cleanName.length < 2) {
+          msg = "Player name must be at least 2 characters.";
+        } else if (cleanName.length > 0 && !validNameRegex.test(cleanName)) {
+          msg = "Player name can only contain letters, numbers, spaces, _ and -.";
+        } else if (cleanName.length > 20) {
+          msg = "Player name must be 20 characters or fewer.";
+        }
+        socket.emit("joinerr", {
+          code: "PLAYER_NAME_INVALID",
+          message: msg
+        });
+        return;
       }
+
+      data.name = cleanName;
 
       let room = null;
 
@@ -170,6 +191,15 @@ io.on("connection", (socket) => {
           return;
         }
 
+        // Duplicate name check in the same room (case-insensitive)
+        if (room.hasPlayerName(cleanName)) {
+          socket.emit("joinerr", {
+            code: "PLAYER_NAME_TAKEN",
+            message: "That player name is already in use in this room."
+          });
+          return;
+        }
+
         const maxSlots = parseInt(room.settings[SETTINGS.SLOTS]) || 8;
         if (!data.spectator && room.getActivePlayers().length >= maxSlots) {
           // Room full (joinerr 2)
@@ -178,10 +208,23 @@ io.on("connection", (socket) => {
         }
       } else {
         // Quick play / Join public room
-        room = roomManager.findOrCreatePublicRoom(data.lang);
+        room = roomManager.findOrCreatePublicRoom(data.lang, cleanName);
+      }
+
+      // Clean up any existing session on this socket before joining/creating to prevent ghost/duplicate sessions
+      const existingSession = roomManager.getSocketSession(socket);
+      if (existingSession && existingSession.room) {
+        if (existingSession.player) {
+          existingSession.room.removePlayer(existingSession.player.id);
+        }
+        roomManager.unbindSocket(socket.id);
       }
 
       const player = room.addPlayer(socket, data);
+      if (!player) {
+        // addPlayer returned null (e.g., room full during atomic capacity check)
+        return;
+      }
       roomManager.bindSocket(socket, room, player);
       console.log(`Player ${player.name} (${player.id}) joined room ${room.id} [Players: ${room.getActivePlayers().length}, Spectator: ${player.spectator}]`);
     } catch (err) {
@@ -194,7 +237,7 @@ io.on("connection", (socket) => {
   socket.on("data", (packet = {}) => {
     try {
       const session = roomManager.getSocketSession(socket);
-      if (!session) return;
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
 
       const { room, player } = session;
       const id = packet.id;
@@ -304,7 +347,7 @@ io.on("connection", (socket) => {
   socket.on("evolution:activate_power", (data) => {
     try {
       const session = roomManager.getSocketSession(socket);
-      if (!session || !session.room || !session.player) return;
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
       if (session.room.evolution) {
         session.room.evolution.activatePower(session.player, data);
       }
@@ -316,7 +359,7 @@ io.on("connection", (socket) => {
   socket.on("evolution:select_power", (powerId) => {
     try {
       const session = roomManager.getSocketSession(socket);
-      if (!session || !session.room || !session.player) return;
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
       if (session.room.evolution) {
         session.room.evolution.selectPower(session.player, powerId);
       }
@@ -325,10 +368,35 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("evolution:unlock_power", (data) => {
+    try {
+      const session = roomManager.getSocketSession(socket);
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
+      if (session.room.evolution) {
+        const powerId = typeof data === "object" && data !== null ? data.powerId : data;
+        session.room.evolution.unlockPower(session.player, powerId);
+      }
+    } catch (err) {
+      console.error("Error unlocking evolution power:", err);
+    }
+  });
+
+  socket.on("evolution:request_draft", () => {
+    try {
+      const session = roomManager.getSocketSession(socket);
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
+      if (session.room.evolution) {
+        session.room.evolution.requestDraft(session.player);
+      }
+    } catch (err) {
+      console.error("Error requesting evolution draft:", err);
+    }
+  });
+
   socket.on("evolution:unequip_power", (data) => {
     try {
       const session = roomManager.getSocketSession(socket);
-      if (!session || !session.room || !session.player) return;
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
       if (session.room.evolution) {
         const powerId = typeof data === "object" ? data.powerId : data;
         session.room.evolution.unequipPower(session.player, powerId);
@@ -341,7 +409,7 @@ io.on("connection", (socket) => {
   socket.on("evolution:equip_power", (data) => {
     try {
       const session = roomManager.getSocketSession(socket);
-      if (!session || !session.room || !session.player) return;
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
       if (session.room.evolution) {
         const powerId = typeof data === "object" ? data.powerId : data;
         const slot = typeof data === "object" ? data.slot : -1;
@@ -355,7 +423,7 @@ io.on("connection", (socket) => {
   socket.on("evolution:test_add_xp", (amount) => {
     try {
       const session = roomManager.getSocketSession(socket);
-      if (!session || !session.room || !session.player) return;
+      if (!session || !session.room || !session.player || !session.room.players.has(session.player.id)) return;
       if (session.room.evolution) {
         session.room.evolution.addXP(session.player, parseInt(amount) || 50, "Test Bonus");
       }

@@ -263,6 +263,7 @@ class SupabaseService {
       };
       if (typeof state.xp === "number") evoUpdates.xp = state.xp;
       if (typeof state.level === "number") evoUpdates.level = state.level;
+      if (typeof state.powerPoints === "number") evoUpdates.power_points = state.powerPoints;
       if (state.branch) evoUpdates.branch = state.branch;
       if (state.ultimatePower !== undefined) evoUpdates.ultimate_power = state.ultimatePower;
 

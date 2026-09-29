@@ -113,6 +113,8 @@
 
     sock.on("evolution:state", onEvolutionState);
     sock.on("evolution:xp_gain", onXpGain);
+    sock.on("evolution:pp_gain", onPpGain);
+    sock.on("evolution:power_unlocked", onPowerUnlocked);
     sock.on("evolution:effect", onEvolutionEffect);
     sock.on("evolution:roster", onEvolutionRoster);
     sock.on("evolution:letter_vision", onLetterVision);
@@ -215,6 +217,31 @@
       } else {
         streakEl.style.display = "none";
       }
+    }
+
+    // 2b. Update Power Points Badge & Unlock Button
+    const ppEl = dock.querySelector("#evolution-badge-pp .pp-count");
+    if (ppEl) {
+      ppEl.textContent = state.powerPoints !== undefined ? state.powerPoints : 0;
+    }
+    const draftPpBalance = document.getElementById("draft-pp-balance");
+    if (draftPpBalance) {
+      draftPpBalance.textContent = `${state.powerPoints !== undefined ? state.powerPoints : 0} PP`;
+    }
+
+    const unlockBtn = document.getElementById("evolution-btn-unlock-power");
+    if (unlockBtn) {
+      const pp = state.powerPoints || 0;
+      const choices = state.pendingDraft || [];
+      const hasAffordable = choices.some(c => (c.cost || 5) <= pp && (c.levelReq || 1) <= state.level);
+      const canUnlock = hasAffordable || pp >= 5;
+      unlockBtn.style.display = canUnlock ? "inline-flex" : "none";
+    }
+
+    // Refresh draft modal if currently open
+    const draftModal = document.getElementById("overlay-evolution-choice");
+    if (draftModal && draftModal.style.display !== "none" && state.pendingDraft) {
+      renderDraftModal(state.pendingDraft);
     }
 
     // 3. Render Normal Power Slots (Slots 0, 1, 2)
@@ -386,6 +413,36 @@
     }, 1000);
   }
 
+  function showPpToast(amount, reason) {
+    const canvas = document.getElementById("game-canvas");
+    if (!canvas) return;
+    const toast = document.createElement("div");
+    toast.className = "evolution-pp-toast";
+    toast.textContent = `+${amount} PP (${reason || "Gameplay"})`;
+    canvas.appendChild(toast);
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 2000);
+  }
+
+  function onPpGain(data) {
+    if (!data) return;
+    showPpToast(data.amount, data.reason);
+    const ppEl = document.querySelector("#evolution-badge-pp .pp-count");
+    if (ppEl && typeof data.totalPP === "number") {
+      ppEl.textContent = data.totalPP;
+    }
+    const draftPpBalance = document.getElementById("draft-pp-balance");
+    if (draftPpBalance && typeof data.totalPP === "number") {
+      draftPpBalance.textContent = `${data.totalPP} PP`;
+    }
+  }
+
+  function onPowerUnlocked(data) {
+    if (!data) return;
+    appendSystemChatMessage(`🎉 Unlocked power: ${data.powerName}! (${data.remainingPP} PP remaining)`, "#22c55e");
+  }
+
   function renderDraftModal(draftChoices) {
     let modal = document.getElementById("overlay-evolution-choice");
     if (!modal) return;
@@ -399,21 +456,66 @@
     const container = modal.querySelector(".evolution-draft-choices");
     if (!container) return;
 
+    const currentPP = (evolutionState && typeof evolutionState.powerPoints === "number") ? evolutionState.powerPoints : 0;
+    const currentLevel = (evolutionState && typeof evolutionState.level === "number") ? evolutionState.level : 0;
+
+    const draftPpBalance = document.getElementById("draft-pp-balance");
+    if (draftPpBalance) {
+      draftPpBalance.textContent = `${currentPP} PP`;
+    }
+
     container.innerHTML = "";
     draftChoices.forEach(choice => {
       const card = document.createElement("div");
       card.className = "evolution-choice-card";
+
+      const cost = choice.cost || 5;
+      const levelReq = choice.isUltimate ? 10 : (choice.levelReq || 1);
+      const isLevelMet = currentLevel >= levelReq;
+      const canAfford = currentPP >= cost;
+
+      let btnClass = "btn-choice-unlock affordable";
+      let btnText = `UNLOCK (${cost} PP)`;
+      let btnDisabled = false;
+
+      if (!isLevelMet) {
+        btnClass = "btn-choice-unlock locked";
+        btnText = `LOCKED (Req. Lvl ${levelReq})`;
+        btnDisabled = true;
+      } else if (!canAfford) {
+        btnClass = "btn-choice-unlock unaffordable";
+        btnText = `Need ${cost} PP (Have ${currentPP})`;
+        btnDisabled = true;
+      }
+
+      const branchCode = getBranchBadge(choice.branch, choice.id);
+
       card.innerHTML = `
+        <div class="choice-icon">${choice.icon || "✨"}</div>
         <div class="choice-name">${choice.name.toUpperCase()}</div>
-        <div class="choice-rarity" style="color:${getRarityColor(choice.rarity)}">${choice.rarity.toUpperCase()}</div>
+        <div class="choice-badges">
+          <span class="choice-branch">[${branchCode}]</span>
+          <span class="choice-rarity" style="color:${getRarityColor(choice.rarity)}">${choice.rarity.toUpperCase()}</span>
+        </div>
+        <div class="choice-level-req ${isLevelMet ? "met" : "locked"}">
+          ${isLevelMet ? `✓ Level ${levelReq}+ Met` : `🔒 Requires Level ${levelReq}`}
+        </div>
+        <div class="choice-cost">Cost: ${cost} PP</div>
         <div class="choice-desc">${choice.description}</div>
+        <button class="${btnClass}" ${btnDisabled ? "disabled" : ""}>${btnText}</button>
       `;
-      card.addEventListener("click", () => {
-        if (socket) {
-          socket.emit("evolution:select_power", choice.id);
-        }
-        modal.style.display = "none";
-      });
+
+      const unlockBtn = card.querySelector(".btn-choice-unlock");
+      if (unlockBtn && !btnDisabled) {
+        unlockBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (socket) {
+            socket.emit("evolution:unlock_power", { powerId: choice.id });
+          }
+          modal.style.display = "none";
+        });
+      }
+
       container.appendChild(card);
     });
   }
@@ -1032,6 +1134,84 @@
   });
 
   // ========================================================
+  // DRAWREALM PLAYER NAME VALIDATION & FEEDBACK
+  // ========================================================
+  function validatePlayerName(name) {
+    if (typeof name !== "string") {
+      return { valid: false, cleanName: "", error: "Please enter your player name." };
+    }
+    const cleanName = name.trim();
+    if (!cleanName || cleanName.length === 0) {
+      return { valid: false, cleanName: "", error: "Please enter your player name." };
+    }
+    if (cleanName.length < 2) {
+      return { valid: false, cleanName, error: "Player name must be at least 2 characters." };
+    }
+    const validCharRegex = /^[a-zA-Z0-9 _-]+$/;
+    if (!validCharRegex.test(cleanName)) {
+      return { valid: false, cleanName, error: "Player name can only contain letters, numbers, spaces, _ and -." };
+    }
+    if (cleanName.length > 20) {
+      return { valid: false, cleanName, error: "Player name must be 20 characters or fewer." };
+    }
+    return { valid: true, cleanName, error: null };
+  }
+
+  function showNameValidationError(msg) {
+    const nameInput = document.querySelector("#home .container-name-lang input") || document.querySelector(".input-name");
+    const errorContainer = document.getElementById("name-validation-msg");
+    if (errorContainer) {
+      errorContainer.textContent = msg || "Please enter your player name.";
+      errorContainer.style.display = "flex";
+    }
+    if (nameInput) {
+      nameInput.classList.remove("input-error");
+      void nameInput.offsetWidth; // trigger reflow for CSS animation
+      nameInput.classList.add("input-error");
+      nameInput.focus();
+    }
+  }
+
+  function clearNameValidationError() {
+    const nameInput = document.querySelector("#home .container-name-lang input") || document.querySelector(".input-name");
+    const errorContainer = document.getElementById("name-validation-msg");
+    if (errorContainer) {
+      errorContainer.style.display = "none";
+      errorContainer.textContent = "";
+    }
+    if (nameInput) {
+      nameInput.classList.remove("input-error");
+    }
+  }
+
+  function getValidatedPlayerName(showUiError = true) {
+    const nameInput = document.querySelector("#home .container-name-lang input") || document.querySelector(".input-name");
+    const rawName = nameInput ? nameInput.value : "";
+    const res = validatePlayerName(rawName);
+    if (!res.valid) {
+      if (showUiError) {
+        showNameValidationError(res.error);
+      }
+      return null;
+    }
+    clearNameValidationError();
+    if (nameInput && nameInput.value !== res.cleanName) {
+      nameInput.value = res.cleanName;
+    }
+    try {
+      if (window.localStorage) {
+        localStorage.setItem("name", res.cleanName);
+      }
+    } catch (e) {}
+    return res.cleanName;
+  }
+
+  window.validatePlayerName = validatePlayerName;
+  window.getValidatedPlayerName = getValidatedPlayerName;
+  window.showNameValidationError = showNameValidationError;
+  window.clearNameValidationError = clearNameValidationError;
+
+  // ========================================================
   // DRAWREALM UI & PRE-GAME FLOW CONTROLLER
   // ========================================================
   let hasShownEvolutionIntro = false;
@@ -1047,15 +1227,41 @@
   }
 
   function setupDrawRealmModals() {
-    // Open Buttons
+    // Live clearing on player name input
+    const nameInput = document.querySelector("#home .container-name-lang input") || document.querySelector(".input-name");
+    if (nameInput) {
+      nameInput.addEventListener("input", clearNameValidationError);
+      nameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const playBtn = document.querySelector("#home .panel .button-play");
+          if (playBtn) playBtn.click();
+        }
+      });
+    }
+
+    // Open Buttons with Name Validation Guards
     const btnCreate = document.getElementById("btn-create-room-open");
     if (btnCreate) {
-      btnCreate.addEventListener("click", () => openDrawRealmModal("drawrealm-modal-create"));
+      btnCreate.addEventListener("click", (e) => {
+        const validName = getValidatedPlayerName(true);
+        if (!validName) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        openDrawRealmModal("drawrealm-modal-create");
+      });
     }
 
     const btnJoin = document.getElementById("btn-join-room-open");
     if (btnJoin) {
-      btnJoin.addEventListener("click", () => {
+      btnJoin.addEventListener("click", (e) => {
+        const validName = getValidatedPlayerName(true);
+        if (!validName) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         const err = document.getElementById("join-error-msg");
         if (err) err.style.display = "none";
         openDrawRealmModal("drawrealm-modal-join");
@@ -1064,7 +1270,13 @@
 
     const btnPublic = document.getElementById("btn-public-rooms-open");
     if (btnPublic) {
-      btnPublic.addEventListener("click", () => {
+      btnPublic.addEventListener("click", (e) => {
+        const validName = getValidatedPlayerName(true);
+        if (!validName) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         openDrawRealmModal("drawrealm-modal-public");
         loadPublicRooms();
       });
@@ -1180,6 +1392,11 @@
   }
 
   function handleCreateRoomSubmit() {
+    const validName = getValidatedPlayerName(true);
+    if (!validName) {
+      return;
+    }
+
     const roomType = getToggleValue("create-room-type-group", "private");
     const mode = parseInt(getToggleValue("create-mode-group", "0"), 10) || 0;
     const slots = parseInt(document.getElementById("create-select-slots").value, 10) || 8;
@@ -1230,6 +1447,11 @@
   }
 
   function handleJoinRoomSubmit() {
+    const validName = getValidatedPlayerName(true);
+    if (!validName) {
+      return;
+    }
+
     const input = document.getElementById("input-join-code");
     const err = document.getElementById("join-error-msg");
     if (!input) return;
@@ -1294,6 +1516,11 @@
           const joinBtn = card.querySelector(".btn-room-join");
           if (joinBtn && !isFull) {
             joinBtn.addEventListener("click", () => {
+              const validName = getValidatedPlayerName(true);
+              if (!validName) {
+                closeDrawRealmModal("drawrealm-modal-public");
+                return;
+              }
               window.history.pushState(null, "", "?" + room.id);
               closeDrawRealmModal("drawrealm-modal-public");
               const playBtn = document.querySelector("#home .panel .button-play");
@@ -1368,6 +1595,36 @@
 
     setupDrawRealmModals();
     setInterval(updateLobbyHeader, 1000);
+
+    // Power Points unlock button & modal handlers
+    const unlockBtn = document.getElementById("evolution-btn-unlock-power");
+    if (unlockBtn) {
+      unlockBtn.addEventListener("click", () => {
+        if (socket) socket.emit("evolution:request_draft");
+        if (evolutionState && evolutionState.pendingDraft) {
+          renderDraftModal(evolutionState.pendingDraft);
+        }
+      });
+    }
+
+    const closeDraftBtn = document.getElementById("btn-evolution-draft-close");
+    if (closeDraftBtn) {
+      closeDraftBtn.addEventListener("click", () => {
+        const modal = document.getElementById("overlay-evolution-choice");
+        if (modal) modal.style.display = "none";
+      });
+    }
+
+    const ppBadge = document.getElementById("evolution-badge-pp");
+    if (ppBadge) {
+      ppBadge.style.cursor = "pointer";
+      ppBadge.addEventListener("click", () => {
+        if (socket) socket.emit("evolution:request_draft");
+        if (evolutionState && evolutionState.pendingDraft) {
+          renderDraftModal(evolutionState.pendingDraft);
+        }
+      });
+    }
   }
 
   if (document.readyState === "loading") {

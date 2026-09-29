@@ -127,6 +127,12 @@ class GameEngine {
       return;
     }
 
+    // Record starting scores for this round to evaluate round winner
+    this.roundStartScores = new Map();
+    for (const p of this.room.players.values()) {
+      this.roundStartScores.set(p.id, p.score || 0);
+    }
+
     this.drawerQueue = activePlayers.map(p => p.id);
 
     // State 2: Round X announcement (0-indexed round number in data)
@@ -144,6 +150,22 @@ class GameEngine {
 
     // Check if round finished
     if (this.drawerQueue.length === 0) {
+      // Evaluate round winner if round just concluded
+      if (this.currentRound > 0 && this.room.evolution && this.roundStartScores) {
+        let bestDelta = -1;
+        let bestWinnerId = null;
+        for (const p of this.room.players.values()) {
+          const delta = (p.score || 0) - (this.roundStartScores.get(p.id) || 0);
+          if (delta > bestDelta && delta > 0) {
+            bestDelta = delta;
+            bestWinnerId = p.id;
+          }
+        }
+        if (bestWinnerId !== null) {
+          this.room.evolution.onRoundEnd(bestWinnerId);
+        }
+      }
+
       this.startNextRound();
       return;
     }
@@ -242,6 +264,7 @@ class GameEngine {
    * Starts active drawing phase
    */
   startDrawingTurn(word) {
+    this.clearTimer();
     this.secretWord = word;
     this.state = STATES.DRAWING;
     let drawTime = parseInt(this.room.settings[SETTINGS.DRAWTIME]) || 80;
@@ -516,6 +539,7 @@ class GameEngine {
    * Concludes a drawing turn and reveals word & scores
    */
   endTurn(reason) {
+    if (this.state === STATES.REVEAL) return;
     this.clearTimer();
     this.state = STATES.REVEAL;
 

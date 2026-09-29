@@ -71,6 +71,25 @@ class Room {
     return Array.from(this.players.values()).filter(p => !p.disconnected);
   }
 
+  /**
+   * Checks if an active connected player in this room already uses the given name (case-insensitive)
+   * @param {string} name
+   * @param {number|null} [excludePlayerId]
+   * @returns {boolean}
+   */
+  hasPlayerName(name, excludePlayerId = null) {
+    if (!name || typeof name !== "string") return false;
+    const target = name.trim().toLowerCase();
+    if (!target) return false;
+    for (const player of this.players.values()) {
+      if (excludePlayerId !== null && player.id === excludePlayerId) continue;
+      if (!player.disconnected && player.name && player.name.trim().toLowerCase() === target) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   getUsersJSON() {
     return this.getAllConnectedPlayers().map(p => p.toJSON());
   }
@@ -78,21 +97,70 @@ class Room {
   /**
    * Adds a player to the room
    */
-  addPlayer(socket, loginData) {
+  addPlayer(socket, loginData = {}) {
     this.lastActivityAt = Date.now();
+    const isSpectator = !!loginData.spectator;
+    const maxSlots = parseInt(this.settings[SETTINGS.SLOTS], 10) || 8;
+
+    // Server-side player name validation
+    const rawName = (loginData && typeof loginData.name === "string") ? loginData.name : "";
+    const cleanName = rawName.trim();
+    const validNameRegex = /^[a-zA-Z0-9 _-]+$/;
+
+    if (!cleanName || cleanName.length < 2 || cleanName.length > 20 || !validNameRegex.test(cleanName)) {
+      if (socket && typeof socket.emit === "function") {
+        let msg = "Please enter your player name.";
+        if (cleanName.length > 0 && cleanName.length < 2) {
+          msg = "Player name must be at least 2 characters.";
+        } else if (cleanName.length > 0 && !validNameRegex.test(cleanName)) {
+          msg = "Player name can only contain letters, numbers, spaces, _ and -.";
+        } else if (cleanName.length > 20) {
+          msg = "Player name must be 20 characters or fewer.";
+        }
+        socket.emit("joinerr", {
+          code: "PLAYER_NAME_INVALID",
+          message: msg
+        });
+      }
+      return null;
+    }
+
+    // Duplicate name check in the same room (case-insensitive)
+    if (this.hasPlayerName(cleanName)) {
+      if (socket && typeof socket.emit === "function") {
+        socket.emit("joinerr", {
+          code: "PLAYER_NAME_TAKEN",
+          message: "That player name is already in use in this room."
+        });
+      }
+      return null;
+    }
+
+    // Server-side atomic capacity check to protect against simultaneous join race conditions
+    if (!isSpectator && this.getActivePlayers().length >= maxSlots) {
+      if (socket && typeof socket.emit === "function") {
+        socket.emit("joinerr", 2);
+      }
+      return null;
+    }
+
     const isFirst = this.players.size === 0;
     const playerId = this.nextPlayerId++;
     const flags = isFirst ? 4 : 0; // Host gets admin flags (4)
-    const isSpectator = !!loginData.spectator;
 
     const player = new Player({
       id: playerId,
       socket,
-      name: loginData.name,
+      roomId: this.id,
+      name: cleanName,
       avatar: loginData.avatar,
       flags,
       spectator: isSpectator
     });
+
+    if (socket && typeof socket.join === "function") {
+      socket.join(this.id);
+    }
 
     this.players.set(playerId, player);
     if (isFirst) {
@@ -262,12 +330,35 @@ class Room {
   }
 
   /**
+   * Promotes the next active connected player to room host
+   */
+  transferHostToNextActive() {
+    const remaining = this.getActivePlayers();
+    if (remaining.length > 0) {
+      this.ownerId = remaining[0].id;
+      remaining[0].flags = 4;
+      this.broadcast({
+        id: PACKETS.OWNER,
+        data: this.ownerId
+      });
+      return remaining[0];
+    } else {
+      this.ownerId = -1;
+      return null;
+    }
+  }
+
+  /**
    * Removes a player from the room permanently
    */
   removePlayer(playerId, reason = 0) {
     this.lastActivityAt = Date.now();
     const player = this.players.get(playerId);
     if (!player) return;
+
+    if (player.socket && typeof player.socket.leave === "function") {
+      player.socket.leave(this.id);
+    }
 
     this.players.delete(playerId);
 
@@ -279,21 +370,23 @@ class Room {
 
     // Transfer ownership if owner left
     if (playerId === this.ownerId) {
-      const remaining = this.getActivePlayers();
-      if (remaining.length > 0) {
-        this.ownerId = remaining[0].id;
-        remaining[0].flags = 4;
-        this.broadcast({
-          id: PACKETS.OWNER,
-          data: this.ownerId
-        });
-      } else {
-        this.ownerId = -1;
-      }
+      this.transferHostToNextActive();
     }
 
     // Notify game engine
     this.game.handlePlayerLeave(playerId);
+  }
+
+  /**
+   * Cleans up room state and resources on destruction
+   */
+  destroy() {
+    this.game.clearTimer();
+    this.drawCommands = [];
+    this.undoHistory = [];
+    if (this.evolution && typeof this.evolution.destroy === "function") {
+      this.evolution.destroy();
+    }
   }
 
   /**

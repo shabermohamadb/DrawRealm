@@ -36,6 +36,7 @@ class DatabaseManager {
         unlocked_powers TEXT DEFAULT '[]',
         achievements TEXT DEFAULT '[]',
         stats TEXT DEFAULT '{}',
+        power_points INTEGER DEFAULT 0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -63,11 +64,18 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_matches_ended ON matches(ended_at);
     `);
 
+    // Safe migration: Add power_points column if not present in existing table
+    try {
+      this.db.exec("ALTER TABLE players ADD COLUMN power_points INTEGER DEFAULT 0;");
+    } catch (e) {
+      // Column already exists
+    }
+
     // Prepare commonly used statements
     this.stmtGetPlayer = this.db.prepare("SELECT * FROM players WHERE LOWER(name) = LOWER(?)");
     this.stmtUpsertPlayer = this.db.prepare(`
-      INSERT INTO players (name, xp, level, equipped_powers, ultimate_power, unlocked_powers, achievements, stats, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO players (name, xp, level, equipped_powers, ultimate_power, unlocked_powers, achievements, stats, power_points, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(name) DO UPDATE SET
         xp = excluded.xp,
         level = excluded.level,
@@ -76,6 +84,7 @@ class DatabaseManager {
         unlocked_powers = excluded.unlocked_powers,
         achievements = excluded.achievements,
         stats = excluded.stats,
+        power_points = excluded.power_points,
         updated_at = excluded.updated_at
     `);
 
@@ -160,7 +169,8 @@ class DatabaseManager {
           matchesWon: 0,
           roundsWon: 0,
           highestStreak: 0
-        }
+        },
+        powerPoints: 0
       };
 
       this.stmtUpsertPlayer.run(
@@ -172,6 +182,7 @@ class DatabaseManager {
         JSON.stringify(defaultProfile.unlockedPowers),
         JSON.stringify(defaultProfile.achievements),
         JSON.stringify(defaultProfile.stats),
+        defaultProfile.powerPoints,
         now,
         now
       );
@@ -187,7 +198,8 @@ class DatabaseManager {
       ultimatePower: row.ultimate_power || null,
       unlockedPowers: JSON.parse(row.unlocked_powers || "[]"),
       achievements: JSON.parse(row.achievements || "[]"),
-      stats: JSON.parse(row.stats || "{}")
+      stats: JSON.parse(row.stats || "{}"),
+      powerPoints: row.power_points !== undefined && row.power_points !== null ? row.power_points : 0
     };
   }
 
@@ -204,6 +216,7 @@ class DatabaseManager {
       JSON.stringify(profile.unlockedPowers || []),
       JSON.stringify(profile.achievements || []),
       JSON.stringify(profile.stats || {}),
+      profile.powerPoints || 0,
       now,
       now
     );
@@ -223,6 +236,7 @@ class DatabaseManager {
         supabaseService.saveEvolutionState(remote.id, {
           xp: profile.xp,
           level: profile.level,
+          powerPoints: profile.powerPoints || 0,
           ultimatePower: profile.ultimatePower,
           unlockedPowers: profile.unlockedPowers,
           equippedPowers: profile.equippedPowers

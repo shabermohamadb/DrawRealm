@@ -64,15 +64,17 @@ class RoomManager {
   /**
    * Finds an available public room or creates a new one
    */
-  findOrCreatePublicRoom(lang = 0) {
+  findOrCreatePublicRoom(lang = 0, playerName = null) {
     const parsedLang = parseInt(lang, 10) || 0;
 
-    // Search for public room with open slots
+    // Search for public room with open slots and no duplicate name
     for (const room of this.rooms.values()) {
       if (room.type === 0 && room.settings[SETTINGS.LANG] === parsedLang) {
         const slots = parseInt(room.settings[SETTINGS.SLOTS], 10) || 8;
         if (room.getActivePlayers().length < slots) {
-          return room;
+          if (!playerName || !room.hasPlayerName(playerName)) {
+            return room;
+          }
         }
       }
     }
@@ -164,6 +166,10 @@ class RoomManager {
     targetPlayer.socket = socket;
     targetPlayer.disconnected = false;
     targetPlayer.disconnectedAt = 0;
+    targetPlayer.roomId = room.id;
+    if (socket && typeof socket.join === "function") {
+      socket.join(room.id);
+    }
     this.bindSocket(socket, room, targetPlayer);
 
     console.log(`[Reconnection] Player ${targetPlayer.name} (${targetPlayer.id}) successfully reconnected to room ${room.id}`);
@@ -181,6 +187,13 @@ class RoomManager {
   }
 
   /**
+   * Unbinds socket from session mapping
+   */
+  unbindSocket(socketId) {
+    this.socketMap.delete(socketId);
+  }
+
+  /**
    * Handles player disconnection with grace period
    */
   handleDisconnect(socket) {
@@ -192,9 +205,15 @@ class RoomManager {
 
     // If already marked or removed, skip
     if (!room.players.has(player.id)) return;
+    if (player.disconnected) return;
 
     player.disconnected = true;
     player.disconnectedAt = Date.now();
+
+    // If the room host disconnects, immediately assign host to the next active player
+    if (player.id === room.ownerId) {
+      room.transferHostToNextActive();
+    }
 
     const isCurrentDrawer = (room.game.state === STATES.DRAWING && player.id === room.game.currentDrawerId);
     const gracePeriodMs = isCurrentDrawer
@@ -245,12 +264,18 @@ class RoomManager {
     if (!room) return;
 
     console.log(`[RoomManager] Cleaning up room: ${roomId}`);
-    room.game.clearTimer();
+    room.destroy();
     for (const p of room.players.values()) {
       if (p.disconnectTimeout) clearTimeout(p.disconnectTimeout);
       if (p.reconnectToken) {
         this.tokenMap.delete(p.reconnectToken);
         db.deleteReconnectSession(p.reconnectToken);
+      }
+      if (p.socket) {
+        this.socketMap.delete(p.socket.id);
+        if (typeof p.socket.leave === "function") {
+          p.socket.leave(roomId);
+        }
       }
     }
     this.rooms.delete(roomId);
@@ -287,22 +312,57 @@ class RoomManager {
   }
 
   /**
+   * Total count of games currently in an active round/play state
+   */
+  getActiveGamesCount() {
+    let count = 0;
+    for (const room of this.rooms.values()) {
+      if (room.game && room.game.state !== STATES.LOBBY && room.game.state !== STATES.GAME_OVER) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
    * Returns list of public rooms for browser
    */
   getPublicRooms() {
     const list = [];
+    const MODE_NAMES = {
+      0: "Classic",
+      1: "Speed Draw",
+      2: "Team Battle",
+      3: "Word Rush",
+      4: "Mystery Word",
+      5: "Chaos Round",
+      6: "Evolution"
+    };
+
     for (const room of this.rooms.values()) {
       if (room.type === 0) {
+        const modeId = parseInt(room.settings[SETTINGS.WORDMODE], 10) || 0;
+        const state = room.game ? room.game.state : STATES.LOBBY;
+        const status = state === STATES.LOBBY ? "Waiting" : (state === STATES.GAME_OVER ? "Game Over" : "Playing");
+        const activeCount = room.getActivePlayers().length;
+        const maxSlots = parseInt(room.settings[SETTINGS.SLOTS], 10) || 8;
+
         list.push({
           id: room.id,
+          code: room.id,
           type: room.type,
-          players: room.getActivePlayers().length,
-          maxSlots: parseInt(room.settings[SETTINGS.SLOTS], 10) || 8,
-          round: Math.max(1, room.game.currentRound),
+          players: activeCount,
+          playerCount: activeCount,
+          maxPlayers: maxSlots,
+          maxSlots: maxSlots,
+          mode: modeId,
+          gameMode: MODE_NAMES[modeId] || "Classic",
+          modeName: MODE_NAMES[modeId] || "Classic",
+          status: status,
+          round: Math.max(1, room.game ? room.game.currentRound : 1),
           totalRounds: parseInt(room.settings[SETTINGS.ROUNDS], 10) || 3,
-          mode: parseInt(room.settings[SETTINGS.WORDMODE], 10) || 0,
           lang: parseInt(room.settings[SETTINGS.LANG], 10) || 0,
-          state: room.game.state
+          state: state
         });
       }
     }

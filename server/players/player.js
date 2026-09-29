@@ -15,11 +15,16 @@ class Player {
    * @param {boolean} [options.spectator] - Whether player is spectator
    * @param {string} [options.team] - Assigned team ('red' or 'blue')
    * @param {string} [options.reconnectToken] - Optional existing reconnection token
+   * @param {string} [options.roomId] - Active room ID
    */
-  constructor({ id, socket, name, avatar, flags = 0, spectator = false, team = "", reconnectToken = null }) {
+  constructor({ id, socket, name, avatar, flags = 0, spectator = false, team = "", reconnectToken = null, roomId = null }) {
     this.id = id;
     this.socket = socket;
-    this.name = (name && name.trim().length > 0) ? name.trim().slice(0, 20) : `Player ${id}`;
+    const trimmedName = (name && typeof name === "string") ? name.trim().slice(0, 20) : "";
+    if (!trimmedName || trimmedName.length < 2) {
+      throw new Error("Valid player name (at least 2 characters) is required");
+    }
+    this.name = trimmedName;
     this.avatar = (Array.isArray(avatar) && avatar.length === 4) ? avatar : [0, 0, 0, -1];
     this.score = 0;
     this.guessed = false;

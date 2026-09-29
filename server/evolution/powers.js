@@ -526,7 +526,7 @@ const POWERS = {
   },
 
   // ==========================================
-  //  ULTIMATE POWERS (5) — Level 7+
+  //  ULTIMATE POWERS (5) — Level 10 Exclusive
   // ==========================================
   reality_shift: {
     id: "reality_shift",
@@ -534,7 +534,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    levelReq: 7,
+    levelReq: 10,
     targetType: "all",
     allowedPhases: [4],
     allowedRoles: "any",
@@ -549,7 +549,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    levelReq: 7,
+    levelReq: 10,
     targetType: "self",
     allowedPhases: [3, 4],
     allowedRoles: "any",
@@ -564,7 +564,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    levelReq: 7,
+    levelReq: 10,
     targetType: "self",
     allowedPhases: [4],
     allowedRoles: "guesser",
@@ -579,7 +579,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    levelReq: 7,
+    levelReq: 10,
     targetType: "self",
     allowedPhases: [3, 4],
     allowedRoles: "any",
@@ -594,7 +594,7 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    levelReq: 7,
+    levelReq: 10,
     targetType: "all",
     allowedPhases: [4],
     allowedRoles: "any",
@@ -604,6 +604,13 @@ const POWERS = {
     isUltimate: true
   }
 };
+
+const { POWER_COSTS } = require("./config");
+
+// Dynamically attach cost from POWER_COSTS across all powers
+for (const power of Object.values(POWERS)) {
+  power.cost = POWER_COSTS[power.rarity] || 5;
+}
 
 /**
  * Returns available normal powers filtered by branch/rarity
@@ -620,22 +627,45 @@ function getUltimatePowers() {
 }
 
 /**
- * Generates 3 draft choices for a given level and optional branch preference
+ * Returns pool of powers not yet unlocked and eligible for the player's level
  */
-function rollDraftChoices(level, preferredBranch = null, currentPowerIds = []) {
-  const isUltimateDraft = level >= 7 && Math.random() < 0.4;
-  let pool = isUltimateDraft ? getUltimatePowers() : getNormalPowers();
+function getEligibleUnlockPool(level = 0, unlockedPowerIds = [], allowUltimate = false) {
+  return Object.values(POWERS).filter(p => {
+    if (unlockedPowerIds.includes(p.id)) return false;
+    if (p.isUltimate) {
+      return allowUltimate && level >= 10;
+    }
+    return (p.levelReq || 1) <= level;
+  });
+}
 
-  // Filter by level requirement
-  pool = pool.filter(p => (p.levelReq || 1) <= level);
+/**
+ * Generates 3 draft choices for power unlock progression
+ * Filters for locked powers matching level prerequisites
+ */
+function rollDraftChoices(level = 1, preferredBranch = null, unlockedPowerIds = []) {
+  const allowUltimate = level >= 10 && Math.random() < 0.35;
+  let pool = getEligibleUnlockPool(level, unlockedPowerIds, allowUltimate);
 
-  // Exclude already equipped powers
-  pool = pool.filter(p => !currentPowerIds.includes(p.id));
+  // If player has unlocked all eligible powers for their current level, allow preview of next tier
+  if (pool.length < 3) {
+    const remainingAll = Object.values(POWERS).filter(p => !unlockedPowerIds.includes(p.id));
+    if (remainingAll.length <= 3) {
+      return remainingAll;
+    }
+    pool = remainingAll;
+  }
 
-  if (pool.length <= 3) return pool;
+  // If preferred branch requested, prioritize it
+  if (preferredBranch) {
+    const branchPool = pool.filter(p => p.branch === preferredBranch);
+    if (branchPool.length >= 3) {
+      pool = branchPool;
+    }
+  }
 
-  // Shuffle and pick 3 weighted by level
-  const shuffled = pool.sort(() => 0.5 - Math.random());
+  // Shuffle and pick 3
+  const shuffled = [...pool].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, 3);
 }
 
@@ -643,5 +673,6 @@ module.exports = {
   POWERS,
   getNormalPowers,
   getUltimatePowers,
+  getEligibleUnlockPool,
   rollDraftChoices
 };

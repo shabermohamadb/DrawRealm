@@ -23,7 +23,8 @@
   <meta name="twitter:image" content="img/thumbnail.png">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" type="text/css" href="css/style.css" title="stylesheet">
-  <link rel="preload" as="image" href="img/drawrealm_fantasy_bg.webp" type="image/webp">
+  <link rel="preload" as="image" href="img/drawrealm_video_poster.webp" type="image/webp">
+  <link rel="preload" as="video" href="video/Website_background_animation_style_20260930000327.mp4" type="video/mp4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inconsolata&amp;display=swap" rel="stylesheet">
@@ -35,6 +36,13 @@
   </script>
 </head>
 <body translate="no">
+  <!-- Dynamic Fantasy Video Background -->
+  <div id="video-background-container" class="video-background-container" aria-hidden="true">
+    <video id="video-background" class="video-background" autoplay loop muted playsinline preload="auto" poster="img/drawrealm_video_poster.webp">
+      <source src="video/Website_background_animation_style_20260930000327.mp4" type="video/mp4">
+    </video>
+    <div class="video-background-overlay"></div>
+  </div>
   <div id="preroll"></div>
   <div id="home">
     <div class="logo-big">
@@ -45,7 +53,7 @@
       <div class="panel-left"></div>
       <div class="panel">
         <div class="container-name-lang">
-          <input class="input-name" type="text" spellcheck="false" autocomplete="off" placeholder="Enter your name" maxlength="21" data-translate="placeholder">
+          <input class="input-name" type="text" spellcheck="false" autocomplete="off" placeholder="Enter your name" maxlength="20" data-translate="placeholder">
           <select>
             <option value="0">English</option>
             <option value="1">German</option>
@@ -77,6 +85,7 @@
             <option value="27">Turkish</option>
           </select>
         </div>
+        <div id="name-validation-msg" class="name-validation-msg" style="display:none;" role="alert"></div>
         <div class="avatar-customizer">
           <div class="arrows left">
             <div class="arrow left" data-avatar-index="1"></div>
@@ -301,8 +310,12 @@
         </div>
         <div id="overlay-evolution-choice" style="display:none">
           <div class="evolution-draft-header">
-            <div class="evolution-draft-title">EVOLUTION LEVEL UP!</div>
-            <div class="evolution-draft-subtitle">Choose 1 Power to Equip</div>
+            <button id="btn-evolution-draft-close" class="btn-evolution-draft-close" title="Close and save PP">✕</button>
+            <div class="evolution-draft-title">POWER DISCOVERY &amp; UNLOCK</div>
+            <div class="evolution-draft-subtitle">
+              <span class="draft-pp-badge">Your Balance: <b id="draft-pp-balance" class="draft-pp-balance">0 PP</b></span>
+              <span class="draft-subtext">Unlock powers using earned PP &bull; Levels act as prerequisites</span>
+            </div>
           </div>
           <div class="evolution-draft-choices"></div>
         </div>
@@ -329,6 +342,8 @@
           <div class="evolution-xp-bar-bg"><div class="evolution-xp-bar-fill" style="width:0%"></div></div>
           <span class="evolution-badge-xp">0 / 50 XP</span>
           <span class="evolution-badge-streak" style="display:none">Streak: 0</span>
+          <span class="evolution-badge-pp" id="evolution-badge-pp" title="Power Points (PP) earned from gameplay actions"><span class="pp-icon">⚡</span> <span class="pp-count">0</span> PP</span>
+          <button id="evolution-btn-unlock-power" class="evolution-btn-unlock-power" style="display:none;" title="Choose and unlock a new power">⚡ UNLOCK POWER</button>
         </div>
         <div class="evolution-powers-container">
           <div class="evolution-slot" data-slot="0">
@@ -673,5 +688,43 @@
   <script src="js/socket.io.js"></script>
   <script src="js/evolution.js"></script>
   <script src="js/game.js"></script>
+  <script>
+    // Ensure background video plays reliably across all browsers and power modes
+    (function() {
+      const v = document.getElementById('video-background');
+      if (!v) return;
+      v.muted = true;
+      v.defaultMuted = true;
+      v.playsInline = true;
+      const tryPlay = function() {
+        const p = v.play();
+        if (p && typeof p.catch === 'function') {
+          p.catch(function() {
+            // Autoplay deferred: play on first user interaction
+            const unlock = function() {
+              v.play().catch(function() {});
+              window.removeEventListener('pointerdown', unlock);
+              window.removeEventListener('keydown', unlock);
+              window.removeEventListener('touchstart', unlock);
+            };
+            window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+            window.addEventListener('keydown', unlock, { once: true, passive: true });
+            window.addEventListener('touchstart', unlock, { once: true, passive: true });
+          });
+        }
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryPlay);
+      } else {
+        tryPlay();
+      }
+      // Re-trigger if tab becomes visible again
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && v.paused) {
+          v.play().catch(function() {});
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

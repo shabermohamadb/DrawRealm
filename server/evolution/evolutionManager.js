@@ -3,7 +3,7 @@
  * Authoritative Server Power Engine
  */
 
-const { EVOLUTION_LEVELS, EVOLUTION_XP } = require("./config");
+const { EVOLUTION_LEVELS, EVOLUTION_XP, POWER_POINTS_REWARDS, POWER_COSTS } = require("./config");
 const { POWERS, rollDraftChoices } = require("./powers");
 const { checkAchievements } = require("./achievements");
 const storage = require("./storage");
@@ -37,6 +37,9 @@ class EvolutionManager {
       }
     }
     profile.level = level;
+    if (profile.powerPoints === undefined || profile.powerPoints === null) {
+      profile.powerPoints = 0;
+    }
 
     // Ensure all equipped powers are stored in unlockedPowers
     for (const p of profile.equippedPowers) {
@@ -72,6 +75,7 @@ class EvolutionManager {
       name: player.name,
       xp: profile.xp,
       level: level,
+      powerPoints: profile.powerPoints || 0,
       equippedPowers: [...profile.equippedPowers],
       ultimatePower: profile.ultimatePower,
       cooldowns: new Map(), // powerId -> expiresAt
@@ -92,7 +96,7 @@ class EvolutionManager {
         trailBrushUntil: 0,
         overdrive: false
       },
-      pendingDraft: null
+      pendingDraft: rollDraftChoices(level, null, profile.unlockedPowers || [])
     };
 
     this.players.set(player.id, state);
@@ -149,6 +153,7 @@ class EvolutionManager {
       cooldownEndsAt: cooldownEndsAtObj,
       usesRemaining: usesRemainingObj,
       streak: state.streak,
+      powerPoints: state.powerPoints || 0,
       buffs: {
         scoreSurge: state.buffs.scoreSurge,
         doubleStrike: state.buffs.doubleStrike,
@@ -164,7 +169,8 @@ class EvolutionManager {
         trailBrush: state.buffs.trailBrushUntil > now,
         overdrive: state.buffs.overdrive
       },
-      pendingDraft: state.pendingDraft
+      pendingDraft: state.pendingDraft,
+      availableDraft: state.pendingDraft
     };
 
     player.socket.emit("evolution:state", payload);
@@ -234,10 +240,11 @@ class EvolutionManager {
         profile.unlockedPowers.push("score_surge");
       }
 
-      // Generate 3 draft choices
-      const allCurrent = [...state.equippedPowers];
-      if (state.ultimatePower) allCurrent.push(state.ultimatePower);
-      state.pendingDraft = rollDraftChoices(newLevel, null, allCurrent);
+      // Generate 3 draft choices matching new level eligibility
+      state.pendingDraft = rollDraftChoices(newLevel, null, profile.unlockedPowers || []);
+
+      // Milestone Bonus: Award PP for reaching higher level
+      this.addPowerPoints(player, POWER_POINTS_REWARDS.LEVEL_UP, `Level Up Milestone (Level ${newLevel})`);
 
       // Check level-up achievements
       const unlockedAch = checkAchievements(profile);
@@ -258,11 +265,12 @@ class EvolutionManager {
             id: 30,
             data: {
               id: 0,
-              msg: `ACHIEVEMENT UNLOCKED! ${player.name} earned '${ach.title}' (+${ach.xpReward} XP)!`
+              msg: `ACHIEVEMENT UNLOCKED! ${player.name} earned '${ach.title}' (+${ach.xpReward} XP, +${POWER_POINTS_REWARDS.ACHIEVEMENT} PP)!`
             }
           });
           state.xp += ach.xpReward;
           profile.xp = state.xp;
+          this.addPowerPoints(player, POWER_POINTS_REWARDS.ACHIEVEMENT, `Achievement: ${ach.title}`);
         }
         storage.save();
       }
@@ -274,7 +282,50 @@ class EvolutionManager {
   }
 
   /**
-   * Handles guess results and awards XP + streaks
+   * Awards Power Points (PP) to player, persists to storage, and notifies client
+   */
+  addPowerPoints(player, amount, reason = "") {
+    if (!this.isEvolutionMode() || !player || amount <= 0) return;
+    const state = this.players.get(player.id);
+    if (!state) return;
+
+    state.powerPoints = (state.powerPoints || 0) + amount;
+    const profile = storage.getProfile(player.name);
+    profile.powerPoints = state.powerPoints;
+    storage.save();
+
+    if (player.socket) {
+      player.socket.emit("evolution:pp_gain", {
+        amount,
+        totalPP: state.powerPoints,
+        reason
+      });
+    }
+
+    // If player has no active draft, roll one so they have choices ready to inspect
+    if (!state.pendingDraft || state.pendingDraft.length === 0) {
+      state.pendingDraft = rollDraftChoices(state.level, null, profile.unlockedPowers || []);
+    }
+
+    this.syncPlayerState(player);
+  }
+
+  /**
+   * Generates or refreshes a power draft for player upon request
+   */
+  requestDraft(player) {
+    if (!this.isEvolutionMode() || !player) return null;
+    const state = this.players.get(player.id);
+    if (!state) return null;
+
+    const profile = storage.getProfile(player.name);
+    state.pendingDraft = rollDraftChoices(state.level, null, profile.unlockedPowers || []);
+    this.syncPlayerState(player);
+    return state.pendingDraft;
+  }
+
+  /**
+   * Handles guess results and awards XP, PP, + streaks
    */
   onCorrectGuess(player, timeRemaining, totalDrawTime, isFirstGuess) {
     if (!this.isEvolutionMode()) return;
@@ -290,24 +341,34 @@ class EvolutionManager {
     }
 
     let earnedXP = EVOLUTION_XP.CORRECT;
+    let earnedPP = POWER_POINTS_REWARDS.CORRECT;
 
     // Fast guess bonus
     const isFast = (timeRemaining / totalDrawTime) >= 0.75;
     if (isFast) {
       earnedXP += EVOLUTION_XP.FAST;
+      earnedPP += POWER_POINTS_REWARDS.FAST;
       profile.stats.fastGuesses = (profile.stats.fastGuesses || 0) + 1;
     }
 
-    // Streak bonus XP
-    if (state.streak >= 10) earnedXP += EVOLUTION_XP.STREAK_10;
-    else if (state.streak >= 5) earnedXP += EVOLUTION_XP.STREAK_5;
-    else if (state.streak >= 3) earnedXP += EVOLUTION_XP.STREAK_3;
-    else if (state.streak >= 2) earnedXP += EVOLUTION_XP.STREAK_2;
+    // Streak bonus XP & PP
+    if (state.streak >= 10) {
+      earnedXP += EVOLUTION_XP.STREAK_10;
+      earnedPP += POWER_POINTS_REWARDS.STREAK_5;
+    } else if (state.streak >= 5) {
+      earnedXP += EVOLUTION_XP.STREAK_5;
+      earnedPP += POWER_POINTS_REWARDS.STREAK_5;
+    } else if (state.streak >= 3) {
+      earnedXP += EVOLUTION_XP.STREAK_3;
+      earnedPP += POWER_POINTS_REWARDS.STREAK_3;
+    } else if (state.streak >= 2) {
+      earnedXP += EVOLUTION_XP.STREAK_2;
+    }
 
     if (state.streak >= 3) {
       this.room.broadcast({
         id: 30,
-        data: { id: 0, msg: ` ${player.name} is on a ${state.streak} Guess Streak! (+${earnedXP} XP)` }
+        data: { id: 0, msg: ` ${player.name} is on a ${state.streak} Guess Streak! (+${earnedXP} XP, +${earnedPP} PP)` }
       });
     }
 
@@ -317,6 +378,7 @@ class EvolutionManager {
     }
 
     this.addXP(player, earnedXP, isFast ? "Fast Guess + Streak" : "Correct Guess");
+    this.addPowerPoints(player, earnedPP, isFast ? "Fast Guess + Streak" : "Correct Guess");
 
     // Check Point Bomb room event
     if (this.pointBomb && Date.now() < this.pointBomb.expiresAt) {
@@ -341,6 +403,7 @@ class EvolutionManager {
     profile.stats.successfulDraws = (profile.stats.successfulDraws || 0) + 1;
 
     this.addXP(drawer, EVOLUTION_XP.DRAW, "Drawing Completion");
+    this.addPowerPoints(drawer, POWER_POINTS_REWARDS.DRAW, "Drawing Completion");
   }
 
   /**
@@ -367,6 +430,30 @@ class EvolutionManager {
   }
 
   /**
+   * Round end awards
+   */
+  onRoundEnd(roundWinnerId) {
+    if (!this.isEvolutionMode() || !roundWinnerId) return;
+    const winner = this.room.players.get(roundWinnerId);
+    if (!winner) return;
+
+    const profile = storage.getProfile(winner.name);
+    if (!profile.stats) profile.stats = {};
+    profile.stats.roundsWon = (profile.stats.roundsWon || 0) + 1;
+
+    this.addXP(winner, EVOLUTION_XP.ROUND_WIN, "Round Victory");
+    this.addPowerPoints(winner, POWER_POINTS_REWARDS.ROUND_WIN, "Round Victory");
+
+    this.room.broadcast({
+      id: 30,
+      data: {
+        id: 0,
+        msg: `🏆 ${winner.name} won the round (+${EVOLUTION_XP.ROUND_WIN} XP, +${POWER_POINTS_REWARDS.ROUND_WIN} PP)!`
+      }
+    });
+  }
+
+  /**
    * Match end awards
    */
   onMatchEnd(winnerPlayerId) {
@@ -377,53 +464,115 @@ class EvolutionManager {
       if (!profile.stats) profile.stats = {};
       profile.stats.matchesWon = (profile.stats.matchesWon || 0) + 1;
       this.addXP(winner, EVOLUTION_XP.MATCH_WIN, "Match Victory");
+      this.addPowerPoints(winner, POWER_POINTS_REWARDS.MATCH_WIN, "Match Victory");
     }
   }
 
   /**
-   * Handles player selecting a power from level-up draft
+   * Authoritative Power Unlock using Power Points (PP)
+   * 7-point server validation and anti-exploit
    */
-  selectPower(player, powerId) {
+  unlockPower(player, powerId) {
+    if (!this.isEvolutionMode() || !player) {
+      return { success: false, reason: "Evolution mode not active" };
+    }
     const state = this.players.get(player.id);
-    if (!state || !state.pendingDraft) return false;
-
-    const chosen = state.pendingDraft.find(p => p.id === powerId);
-    if (!chosen) return false;
+    if (!state) {
+      return { success: false, reason: "Player state not found" };
+    }
+    const power = POWERS[powerId];
+    if (!power) {
+      return { success: false, reason: "Invalid power ID" };
+    }
 
     const profile = storage.getProfile(player.name);
+    profile.unlockedPowers = profile.unlockedPowers || [];
 
-    if (chosen.isUltimate) {
-      state.ultimatePower = chosen.id;
-      profile.ultimatePower = chosen.id;
-    } else {
-      // Add to equipped powers (max 3)
-      if (state.equippedPowers.length < 3) {
-        state.equippedPowers.push(chosen.id);
-      } else {
-        state.equippedPowers.shift();
-        state.equippedPowers.push(chosen.id);
+    // 1. Check if already unlocked
+    if (profile.unlockedPowers.includes(powerId)) {
+      return { success: false, reason: "Power is already unlocked" };
+    }
+
+    // 2. Check Level prerequisite
+    const levelReq = power.levelReq || 1;
+    if (state.level < levelReq) {
+      return { success: false, reason: `Requires Evolution Level ${levelReq} (Current: ${state.level})` };
+    }
+
+    // 3. Ultimate Power Special Requirement: Level 10 required
+    if (power.isUltimate && state.level < 10) {
+      return { success: false, reason: "Ultimate powers require Evolution Level 10 (Evolution)" };
+    }
+
+    // 4. Power Points cost check
+    const cost = power.cost || 5;
+    if ((state.powerPoints || 0) < cost) {
+      return { success: false, reason: `Insufficient Power Points. Requires ${cost} PP (You have ${state.powerPoints || 0} PP)` };
+    }
+
+    // Deduct PP
+    state.powerPoints -= cost;
+    profile.powerPoints = state.powerPoints;
+
+    // Add to unlocked collection
+    profile.unlockedPowers.push(powerId);
+
+    // Auto-equip if player has an empty slot for their current level
+    const currentLevelData = EVOLUTION_LEVELS[state.level] || EVOLUTION_LEVELS[0];
+    let equipped = false;
+    if (power.isUltimate) {
+      if (currentLevelData.hasUltimate && !state.ultimatePower) {
+        state.ultimatePower = powerId;
+        profile.ultimatePower = powerId;
+        equipped = true;
       }
-      profile.equippedPowers = [...state.equippedPowers];
+    } else {
+      const maxSlots = currentLevelData.maxPowers || 0;
+      if (state.equippedPowers.length < maxSlots && !state.equippedPowers.includes(powerId)) {
+        state.equippedPowers.push(powerId);
+        profile.equippedPowers = [...state.equippedPowers];
+        equipped = true;
+      }
     }
 
-    if (!profile.unlockedPowers.includes(chosen.id)) {
-      profile.unlockedPowers.push(chosen.id);
+    if (power.maxUses !== null) {
+      state.usesRemaining.set(powerId, power.maxUses);
     }
 
-    if (chosen.maxUses !== null) {
-      state.usesRemaining.set(chosen.id, chosen.maxUses);
-    }
+    // Refresh pending draft
+    state.pendingDraft = rollDraftChoices(state.level, null, profile.unlockedPowers);
 
-    state.pendingDraft = null;
     storage.save();
     this.syncPlayerState(player);
 
+    if (player.socket) {
+      player.socket.emit("evolution:power_unlocked", {
+        powerId,
+        powerName: power.name,
+        powerRarity: power.rarity,
+        powerBranch: power.branch,
+        cost,
+        remainingPP: state.powerPoints,
+        equipped
+      });
+    }
+
     this.room.broadcast({
       id: 30,
-      data: { id: 0, msg: ` ${player.name} equipped power: ${chosen.name}!` }
+      data: {
+        id: 0,
+        msg: `✨ ${player.name} unlocked power: ${power.name} (${power.rarity})!`
+      }
     });
 
-    return true;
+    return { success: true, powerId, remainingPP: state.powerPoints, equipped };
+  }
+
+  /**
+   * Handles player selecting a power from draft (backward-compatible alias)
+   */
+  selectPower(player, powerId) {
+    return this.unlockPower(player, powerId);
   }
 
   /**
@@ -732,16 +881,18 @@ class EvolutionManager {
         broadcastMsg = `✨ ${player.name} activated Shimmering Trail Brush!`;
         break;
 
-      case "instant_clean":
-        if (game.room.drawCommands.length > 0) {
-          game.room.drawCommands = game.room.drawCommands.slice(0, Math.max(0, game.room.drawCommands.length - 3));
-          this.room.broadcast({ id: 21, data: game.room.drawCommands.length });
-          effectData = { type: "instant_clean", remainingCommands: game.room.drawCommands.length };
+      case "instant_clean": {
+        const cmds = this.room.drawCommands || [];
+        if (cmds.length > 0) {
+          this.room.drawCommands = cmds.slice(0, Math.max(0, cmds.length - 3));
+          this.room.broadcast({ id: 21, data: this.room.drawCommands.length });
+          effectData = { type: "instant_clean", remainingCommands: this.room.drawCommands.length };
           privateMsg = "🧹 Instant Clean: Reverted your latest 3 drawing strokes.";
         } else {
           return reject("Canvas has no strokes to revert");
         }
         break;
+      }
 
       // --- DEFENSE ---
       case "shield":
@@ -1130,6 +1281,15 @@ class EvolutionManager {
     storage.save();
     this.syncPlayerState(player);
     return { success: true };
+  }
+
+  /**
+   * Cleans up resources when room is destroyed
+   */
+  destroy() {
+    this.players.clear();
+    this.lastActionTimes.clear();
+    this.processedRequestIds.clear();
   }
 }
 
