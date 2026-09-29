@@ -130,35 +130,44 @@ async function runTests() {
     console.log("[Test PASS] Re-equipping power into empty slot verified");
 
     // 7. Test Power Activation & Broadcast (evolution:power_used)
-    // Register listener for word choice (packet 18)
-    const wordChoicePromise = new Promise((resolve) => {
-      client1.on("data", (packet) => {
-        // packet 18 with words array sent to current drawer
-        if (packet.id === 18 && Array.isArray(packet.data)) {
-          resolve(packet.data);
-        }
-      });
-    });
+    let state1 = null;
+    let state2 = null;
+    client1.on("data", (p) => { if (p.id === 11) state1 = p.data; });
+    client2.on("data", (p) => { if (p.id === 11) state2 = p.data; });
 
     console.log("[Test] Starting game to reach DRAWING phase...");
     client1.emit("data", { id: 22 }); // START_GAME
 
     console.log("[Test] Waiting for round countdown and word choice...");
-    const words = await wordChoicePromise;
-    console.log("[Test] Word choices received:", words);
-
-    // Host selects first word (index 0)
-    const drawingStatePromise = new Promise((resolve) => {
-      client1.on("data", (packet) => {
-        // packet 16 or state change to DRAWING (4)
-        if (packet.id === 16 && packet.data && packet.data.id === 4) {
+    await new Promise((resolve, reject) => {
+      const start = Date.now();
+      const iv = setInterval(() => {
+        const drawer = (state1 && state1.id === 3 && state1.data && state1.data.words) ? client1 :
+                       (state2 && state2.id === 3 && state2.data && state2.data.words) ? client2 : null;
+        if (drawer) {
+          clearInterval(iv);
+          drawer.emit("data", { id: 18, data: 0 }); // Choose word 0
           resolve();
+        } else if (Date.now() - start > 10000) {
+          clearInterval(iv);
+          reject(new Error("Timeout waiting for WORD_CHOICE state"));
         }
-      });
+      }, 50);
     });
 
-    client1.emit("data", { id: 18, data: 0 });
-    await drawingStatePromise;
+    // Wait for state 4 (DRAWING)
+    await new Promise((resolve, reject) => {
+      const start = Date.now();
+      const iv = setInterval(() => {
+        if ((state1 && state1.id === 4) || (state2 && state2.id === 4)) {
+          clearInterval(iv);
+          resolve();
+        } else if (Date.now() - start > 10000) {
+          clearInterval(iv);
+          reject(new Error("Timeout waiting for DRAWING state"));
+        }
+      }, 50);
+    });
     console.log("[Test] Game is now in DRAWING phase (state 4)!");
 
     let powerUsedEventReceivedByHost = null;

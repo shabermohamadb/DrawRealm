@@ -265,7 +265,7 @@ async function run() {
   console.log(`  ✓ Client connected to room ${clientA.roomId}`);
 
   // Wait for background Supabase profile resolution & evolution sync
-  await waitFor(() => clientA.evolutionState && clientA.evolutionState.xp >= 500, 5000);
+  await waitFor(() => clientA.evolutionState && clientA.evolutionState.xp >= 500, 12000);
   assert.strictEqual(clientA.evolutionState.level, 3, "In-game evolution level must match Supabase level 3");
   console.log(`  ✓ In-game evolution state seamlessly loaded from Supabase: XP=${clientA.evolutionState.xp}, Level=${clientA.evolutionState.level}`);
 

@@ -194,7 +194,7 @@ async function runE2ETest() {
     await new Promise(r => setTimeout(r, 500));
     await alice.captureScreenshot("/home/shaber/.gemini/antigravity/brain/b014560c-ddf5-44ac-a525-5d2533dae9fa/gameplay_3players_room.png");
 
-    const alicePlayerNames = await alice.eval("Array.from(document.querySelectorAll('#game-players .player-name')).map(e => e.textContent.replace(' (You)', ''))");
+    const alicePlayerNames = await alice.eval("Array.from(document.querySelectorAll('#game-players .player-name')).map(e => e.textContent.replace(' (You)', '').replace(/Lv\\.\\d+/, '').trim())");
     console.log("Player list in Alice's tab:", alicePlayerNames);
     if (!alicePlayerNames.includes("Alice") || !alicePlayerNames.includes("Bob") || !alicePlayerNames.includes("Charlie")) {
       throw new Error("Player names mismatch in Alice tab!");

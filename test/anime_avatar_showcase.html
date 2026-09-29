@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DrawRealm Anime Avatar System Showcase</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    body {
+      background: #124da5 url(../img/background.png) repeat;
+      background-size: 350px;
+      font-family: 'Nunito', sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+      margin: 0;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 5px;
+      text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+    }
+    p.subtitle {
+      color: #cbd5e1;
+      margin-bottom: 25px;
+      font-size: 15px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      max-width: 1000px;
+      width: 100%;
+    }
+    .card {
+      background: rgba(12, 44, 150, 0.85);
+      border: 1px solid rgba(86, 178, 253, 0.4);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .avatar-wrapper {
+      width: 96px;
+      height: 96px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .name {
+      font-weight: 800;
+      font-size: 15px;
+      color: #ffdfb4;
+      margin-bottom: 4px;
+    }
+    .tag {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(0,0,0,0.3);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #93c5fd;
+      margin-bottom: 6px;
+    }
+    .tuple {
+      font-size: 11px;
+      font-family: monospace;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <h1>DRAWREALM ORIGINAL ANIME AVATAR SYSTEM</h1>
+  <p class="subtitle">100% Vector-crisp 2D Anime Archetypes &bull; Zero Emojis &bull; Zero Copyrighted Assets &bull; 10-Column Atlas Architecture</p>
+
+  <div class="grid" id="avatarGrid"></div>
+
+  <script>
+    const P = 28, Y = 57, z = 51;
+    function renderAvatar(tuple) {
+      const col = tuple[0] % P;
+      const eyes = tuple[1] % Y;
+      const mouth = tuple[2] % z;
+      const special = tuple[3];
+
+      const wrap = document.createElement("div");
+      wrap.className = "avatar";
+
+      const c = document.createElement("div");
+      c.className = "color";
+      c.style.backgroundPosition = `${-(col % 10) * 100}% ${-Math.floor(col / 10) * 100}%`;
+
+      const e = document.createElement("div");
+      e.className = "eyes";
+      e.style.backgroundPosition = `${-(eyes % 10) * 100}% ${-Math.floor(eyes / 10) * 100}%`;
+
+      const m = document.createElement("div");
+      m.className = "mouth";
+      m.style.backgroundPosition = `${-(mouth % 10) * 100}% ${-Math.floor(mouth / 10) * 100}%`;
+
+      wrap.appendChild(c);
+      wrap.appendChild(e);
+      wrap.appendChild(m);
+
+      if (special >= 0) {
+        const s = document.createElement("div");
+        s.className = "special";
+        s.style.backgroundPosition = `${-(special % 10) * 100}% ${-Math.floor(special / 10) * 100}%`;
+        wrap.appendChild(s);
+      }
+      return wrap;
+    }
+
+    const SHOWCASE = [
+      { name: "Kaito", tag: "Shadow Rogue", tuple: [0, 0, 0, -1] },
+      { name: "Ren", tag: "Cyber Samurai", tuple: [1, 5, 0, 6] },
+      { name: "Daiki", tag: "Crimson Blaze", tuple: [2, 1, 1, 1] },
+      { name: "Shin", tag: "Frost Sorcerer", tuple: [3, 2, 7, 3] },
+      { name: "Hayate", tag: "Electric Prodigy", tuple: [4, 3, 3, -1] },
+      { name: "Kohaku", tag: "Star Vocalist", tuple: [5, 4, 1, 10] },
+      { name: "Minato", tag: "Digital Nomad", tuple: [6, 5, 0, 0] },
+      { name: "Tsubasa", tag: "Desert Wanderer", tuple: [7, 4, 1, 13] },
+      { name: "Ryuto", tag: "Silent Striker", tuple: [8, 3, 7, 4] },
+      { name: "Sakura", tag: "Sakura Idol", tuple: [9, 1, 2, 2] },
+      { name: "Kage", tag: "Neon Phantom", tuple: [11, 3, 0, 17] },
+      { name: "Aoi", tag: "Ocean Mist", tuple: [14, 0, 1, 11] },
+      { name: "Miku", tag: "Midnight Ace", tuple: [15, 6, 8, 19] },
+      { name: "Riku", tag: "Emerald Hunter", tuple: [16, 2, 0, 9] },
+      { name: "Valeria", tag: "Silver Valkyrie", tuple: [21, 0, 7, 15] },
+      { name: "Cordelia", tag: "Gothic Aristocrat", tuple: [23, 1, 0, 5] }
+    ];
+
+    const container = document.getElementById("avatarGrid");
+    SHOWCASE.forEach(item => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const avWrap = document.createElement("div");
+      avWrap.className = "avatar-wrapper";
+      avWrap.appendChild(renderAvatar(item.tuple));
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "name";
+      nameEl.textContent = item.name;
+
+      const tagEl = document.createElement("div");
+      tagEl.className = "tag";
+      tagEl.textContent = item.tag;
+
+      const tupleEl = document.createElement("div");
+      tupleEl.className = "tuple";
+      tupleEl.textContent = `[${item.tuple.join(", ")}]`;
+
+      card.appendChild(avWrap);
+      card.appendChild(nameEl);
+      card.appendChild(tagEl);
+      card.appendChild(tupleEl);
+
+      container.appendChild(card);
+    });
+  </script>
+</body>
+</html>
