@@ -301,12 +301,12 @@ io.on("connection", (socket) => {
   });
 
   // 3. Evolution Mode Events
-  socket.on("evolution:activate_power", (powerId) => {
+  socket.on("evolution:activate_power", (data) => {
     try {
       const session = roomManager.getSocketSession(socket);
       if (!session || !session.room || !session.player) return;
       if (session.room.evolution) {
-        session.room.evolution.activatePower(session.player, powerId);
+        session.room.evolution.activatePower(session.player, data);
       }
     } catch (err) {
       console.error("Error activating evolution power:", err);

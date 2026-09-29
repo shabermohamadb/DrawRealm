@@ -82,7 +82,7 @@ class ChromeTab {
 }
 
 async function capture() {
-  const CDP_PORT = 9245;
+  const CDP_PORT = 9289;
   const chrome = spawn("chromium", [
     "--headless=new",
     "--no-sandbox",
@@ -133,16 +133,10 @@ async function capture() {
     await new Promise(r => setTimeout(r, 800));
     await tab2.captureScreenshot(path.join(ARTIFACT_DIR, "anime_avatars_home.png"));
 
-    // Cycle through a few avatars using arrows to test in-browser responsiveness
+    // Cycle through a few avatars using arrows & randomize
     console.log("Cycling avatar on home page...");
-    await tab2.eval("document.querySelectorAll('#home .avatar-container .arrow')[0].click()"); // next color
-    await new Promise(r => setTimeout(r, 200));
-    await tab2.eval("document.querySelectorAll('#home .avatar-container .arrow')[0].click()");
-    await new Promise(r => setTimeout(r, 200));
-    await tab2.eval("document.querySelectorAll('#home .avatar-container .arrow')[2].click()"); // next eyes
-    await new Promise(r => setTimeout(r, 200));
-    await tab2.eval("document.querySelectorAll('#home .avatar-container .arrow')[4].click()"); // next mouth
-    await new Promise(r => setTimeout(r, 500));
+    await tab2.eval("document.querySelector('.avatar-customizer .randomize').click()");
+    await new Promise(r => setTimeout(r, 400));
     await tab2.captureScreenshot(path.join(ARTIFACT_DIR, "anime_avatars_home_cycled.png"));
 
     // 3. Create room and capture in-game lobby player card

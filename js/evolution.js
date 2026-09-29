@@ -121,6 +121,8 @@
     sock.on("evolution:color_burst", onColorBurst);
     sock.on("evolution:perfect_line", onPerfectLine);
     sock.on("evolution:power_used", onEvolutionPowerUsed);
+    sock.on("evolution:power_activated", onPowerActivated);
+    sock.on("evolution:power_error", onPowerError);
     sock.on("evolution:announcement", (data) => {
       if (data && data.msg) appendSystemChatMessage(data.msg, data.color);
     });
@@ -172,6 +174,20 @@
 
     dock.style.display = isEvolutionActive ? "flex" : "none";
     if (!isEvolutionActive) return;
+
+    // Sync cooldowns with cooldownEndsAt if provided to eliminate timer drift
+    if (state.cooldownEndsAt) {
+      const now = Date.now();
+      state.cooldowns = state.cooldowns || {};
+      for (const [pId, endsAt] of Object.entries(state.cooldownEndsAt)) {
+        const rem = Math.max(0, Math.ceil((endsAt - now) / 1000));
+        if (rem > 0) {
+          state.cooldowns[pId] = rem;
+        } else {
+          delete state.cooldowns[pId];
+        }
+      }
+    }
 
     // 1. Update Level & XP Badge
     const lvlText = dock.querySelector(".evolution-badge-level");
@@ -231,6 +247,28 @@
     startCooldownTicker();
   }
 
+  function updateUsesBadge(btn, power) {
+    if (!btn) return;
+    let usesBadge = btn.querySelector(".uses-badge");
+    const powerObj = (typeof power === "object" && power) ? power : (evolutionState && Array.isArray(evolutionState.equippedPowers) ? evolutionState.equippedPowers.find(p => p && p.id === (typeof power === "string" ? power : btn.dataset.powerId)) : null);
+    const maxUses = powerObj && powerObj.maxUses;
+    if (typeof maxUses === "number" && maxUses > 0) {
+      const pId = powerObj.id;
+      const remaining = (evolutionState && evolutionState.usesRemaining && typeof evolutionState.usesRemaining[pId] === "number")
+        ? evolutionState.usesRemaining[pId]
+        : maxUses;
+      if (!usesBadge) {
+        usesBadge = document.createElement("span");
+        usesBadge.className = "uses-badge";
+        btn.appendChild(usesBadge);
+      }
+      usesBadge.textContent = `${remaining}/${maxUses}`;
+      usesBadge.style.display = "block";
+    } else if (usesBadge) {
+      usesBadge.style.display = "none";
+    }
+  }
+
   function renderPowerButton(btn, power, keyNum, cooldowns, isUlt = false, isLocked = false, slotIdx = 0) {
     if (!btn) return;
     const overlay = btn.querySelector(".cooldown-overlay");
@@ -239,6 +277,7 @@
 
     btn.dataset.slotIdx = slotIdx;
     btn.dataset.keyNum = keyNum;
+    btn.dataset.key = keyNum;
     btn.dataset.isUlt = isUlt ? "true" : "false";
     btn.removeAttribute("data-tooltip");
 
@@ -251,6 +290,7 @@
       if (iconEl) iconEl.textContent = "";
       if (nameEl) nameEl.textContent = "LOCKED";
       if (overlay) overlay.style.display = "none";
+      updateUsesBadge(btn, null);
       return;
     }
 
@@ -261,6 +301,7 @@
       if (iconEl) iconEl.textContent = "";
       if (nameEl) nameEl.textContent = "EMPTY";
       if (overlay) overlay.style.display = "none";
+      updateUsesBadge(btn, null);
       return;
     }
 
@@ -280,6 +321,7 @@
       btn.classList.add("available");
       if (overlay) overlay.style.display = "none";
     }
+    updateUsesBadge(btn, power);
   }
 
   function startCooldownTicker() {
@@ -287,12 +329,27 @@
     cooldownInterval = setInterval(() => {
       if (!evolutionState || !evolutionState.cooldowns) return;
       let hasActiveCd = false;
-      for (const [pId, sec] of Object.entries(evolutionState.cooldowns)) {
-        if (sec > 1) {
-          evolutionState.cooldowns[pId] = sec - 1;
-          hasActiveCd = true;
-        } else {
-          delete evolutionState.cooldowns[pId];
+      const now = Date.now();
+
+      if (evolutionState.cooldownEndsAt) {
+        for (const [pId, endsAt] of Object.entries(evolutionState.cooldownEndsAt)) {
+          const rem = Math.max(0, Math.ceil((endsAt - now) / 1000));
+          if (rem > 0) {
+            evolutionState.cooldowns[pId] = rem;
+            hasActiveCd = true;
+          } else {
+            delete evolutionState.cooldowns[pId];
+            delete evolutionState.cooldownEndsAt[pId];
+          }
+        }
+      } else {
+        for (const [pId, sec] of Object.entries(evolutionState.cooldowns)) {
+          if (sec > 1) {
+            evolutionState.cooldowns[pId] = sec - 1;
+            hasActiveCd = true;
+          } else {
+            delete evolutionState.cooldowns[pId];
+          }
         }
       }
 
@@ -552,6 +609,16 @@
       const remainingCd = (evolutionState.cooldowns && evolutionState.cooldowns[power.id]) || 0;
       const cdText = remainingCd > 0 ? `${remainingCd}s remaining (${power.cooldown || 40}s base)` : `${power.cooldown || 40}s`;
 
+      const roleText = (power.allowedRoles && power.allowedRoles.length === 1)
+        ? (power.allowedRoles[0] === "drawer" ? "Drawer only" : "Guesser only")
+        : "Any role";
+
+      const maxUses = power.maxUses;
+      const usesRem = (evolutionState.usesRemaining && typeof evolutionState.usesRemaining[power.id] === "number")
+        ? evolutionState.usesRemaining[power.id]
+        : (maxUses || "Unlimited");
+      const usesText = maxUses ? `${usesRem} / ${maxUses}` : "Unlimited";
+
       contentHtml = `
         <div class="evo-tt-header">
           <span class="evo-tt-name">${escapeHtml(power.name).toUpperCase()}</span>
@@ -560,6 +627,9 @@
         <div class="evo-tt-desc">${escapeHtml(power.description)}</div>
         <div class="evo-tt-meta">
           <div class="evo-tt-meta-item"><span>Branch:</span> <span class="val">${formatBranchName(power.branch)}</span></div>
+          <div class="evo-tt-meta-item"><span>Required Role:</span> <span class="val">${roleText}</span></div>
+          <div class="evo-tt-meta-item"><span>Level Req:</span> <span class="val">Level ${power.levelReq || 1}</span></div>
+          <div class="evo-tt-meta-item"><span>Uses:</span> <span class="val">${usesText}</span></div>
           <div class="evo-tt-meta-item"><span>Cooldown:</span> <span class="val" style="${remainingCd > 0 ? 'color:#dc2626' : ''}">${cdText}</span></div>
           <div class="evo-tt-meta-item"><span>Hotkey:</span> <span class="val">[Key: ${keyNum}]</span></div>
         </div>
@@ -705,19 +775,95 @@
     const dock = document.getElementById("evolution-dock");
     if (!dock) return;
 
-    const btn = dock.querySelector(`.evolution-power-btn[data-key="${slotNum}"]`);
+    const btn = dock.querySelector(`.evolution-power-btn[data-key="${slotNum}"]`) ||
+                dock.querySelector(`.evolution-power-btn[data-key-num="${slotNum}"]`);
     if (!btn || btn.classList.contains("empty") || btn.classList.contains("locked") || btn.classList.contains("on-cooldown")) return;
 
     const pId = btn.dataset.powerId;
     if (pId) {
       btn.classList.add("clicked");
       setTimeout(() => btn.classList.remove("clicked"), 200);
-      socket.emit("evolution:activate_power", pId);
+      const powerRequestId = "req_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+      socket.emit("evolution:activate_power", {
+        powerId: pId,
+        powerRequestId: powerRequestId
+      });
+    }
+  }
+
+  function onPowerError(data) {
+    if (!data) return;
+    const reason = data.reason || "Action not allowed";
+    const powerId = data.powerId;
+
+    if (powerId) {
+      const btn = document.querySelector(`.evolution-power-btn[data-power-id="${powerId}"]`);
+      if (btn) {
+        btn.classList.remove("error-shake");
+        void btn.offsetWidth; // Force reflow for shake animation
+        btn.classList.add("error-shake");
+        setTimeout(() => btn.classList.remove("error-shake"), 400);
+      }
+    }
+
+    showPowerErrorToast(reason);
+    appendSystemChatMessage(`⚠️ ${reason}`, "#ef4444");
+  }
+
+  function showPowerErrorToast(msg) {
+    const dock = document.getElementById("evolution-dock");
+    if (!dock) return;
+    let toast = document.getElementById("evo-error-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "evo-error-toast";
+      toast.className = "evolution-power-error-toast";
+      dock.appendChild(toast);
+    }
+    toast.textContent = `⚠️ ${msg}`;
+    toast.classList.add("visible");
+    if (toast._timer) clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.classList.remove("visible");
+    }, 3200);
+  }
+
+  function onPowerActivated(data) {
+    if (!data) return;
+    const myId = evolutionState ? evolutionState.playerId : null;
+    if (myId && data.playerId === myId) {
+      if (!evolutionState.cooldowns) evolutionState.cooldowns = {};
+      if (typeof data.cooldown === "number" && data.cooldown > 0) {
+        evolutionState.cooldowns[data.powerId] = data.cooldown;
+      }
+      if (data.cooldownEndsAt) {
+        if (!evolutionState.cooldownEndsAt) evolutionState.cooldownEndsAt = {};
+        evolutionState.cooldownEndsAt[data.powerId] = data.cooldownEndsAt;
+      }
+      if (evolutionState.usesRemaining && typeof data.usesRemaining === "number") {
+        evolutionState.usesRemaining[data.powerId] = data.usesRemaining;
+      }
+
+      const btn = document.querySelector(`.evolution-power-btn[data-power-id="${data.powerId}"]`);
+      if (btn) {
+        const remaining = data.cooldown || 0;
+        const overlay = btn.querySelector(".cooldown-overlay");
+        if (remaining > 0) {
+          btn.classList.add("on-cooldown");
+          btn.classList.remove("available");
+          if (overlay) {
+            overlay.style.display = "flex";
+            overlay.textContent = `${remaining}s`;
+          }
+        }
+        updateUsesBadge(btn, data.powerId);
+      }
+
+      startCooldownTicker();
     }
   }
 
   function onXpGain(data) {
-    // Subtle float notification if canvas is present
     const notice = document.createElement("div");
     notice.className = "evolution-xp-toast";
     notice.textContent = `+${data.amount} XP (${data.reason || "Reward"})`;
@@ -729,13 +875,64 @@
   }
 
   function onEvolutionEffect(data) {
+    if (!data || !data.type) return;
+
     if (data.type === "reverse_canvas") {
+      const myId = evolutionState ? evolutionState.playerId : null;
+      if (Array.isArray(data.immunePlayerIds) && myId && data.immunePlayerIds.includes(myId)) {
+        appendSystemChatMessage("🛡️ Mirror Shield protected you from Reverse Canvas!", "#22c55e");
+        return;
+      }
       const cvs = document.querySelector("#game-canvas canvas");
       if (cvs) {
         cvs.style.transform = "scaleX(-1)";
         setTimeout(() => {
           cvs.style.transform = "";
         }, (data.duration || 15) * 1000);
+      }
+    } else if (data.type === "ghost_canvas") {
+      let ghostCanvas = document.getElementById("evo-ghost-canvas");
+      const mainCanvas = document.querySelector("#game-canvas canvas");
+      if (!ghostCanvas && mainCanvas && mainCanvas.parentElement) {
+        ghostCanvas = document.createElement("canvas");
+        ghostCanvas.id = "evo-ghost-canvas";
+        ghostCanvas.width = mainCanvas.width || 800;
+        ghostCanvas.height = mainCanvas.height || 600;
+        ghostCanvas.style.position = "absolute";
+        ghostCanvas.style.top = "0";
+        ghostCanvas.style.left = "0";
+        ghostCanvas.style.width = "100%";
+        ghostCanvas.style.height = "100%";
+        ghostCanvas.style.pointerEvents = "none";
+        ghostCanvas.style.opacity = "0.25";
+        ghostCanvas.style.zIndex = "5";
+        mainCanvas.parentElement.appendChild(ghostCanvas);
+      }
+      if (ghostCanvas && Array.isArray(data.commands)) {
+        const gctx = ghostCanvas.getContext("2d");
+        gctx.clearRect(0, 0, ghostCanvas.width, ghostCanvas.height);
+        for (const cmd of data.commands) {
+          if (Array.isArray(cmd) && cmd[0] === 0) {
+            gctx.strokeStyle = "rgba(60, 60, 60, 0.75)";
+            gctx.lineWidth = cmd[2] || 6;
+            gctx.lineCap = "round";
+            gctx.lineJoin = "round";
+            gctx.beginPath();
+            gctx.moveTo(cmd[3], cmd[4]);
+            gctx.lineTo(cmd[5], cmd[6]);
+            gctx.stroke();
+          }
+        }
+        setTimeout(() => {
+          if (ghostCanvas && ghostCanvas.parentElement) {
+            ghostCanvas.remove();
+          }
+        }, (data.duration || 12) * 1000);
+      }
+    } else if (data.type === "chaos_brush") {
+      const sizeButtons = document.querySelectorAll("#game-toolbar .sizes .size");
+      if (sizeButtons.length > 0) {
+        sizeButtons[sizeButtons.length - 1].click();
       }
     }
   }
@@ -767,19 +964,59 @@
   }
 
   function onWordScan(data) {
-    console.log(`[Word Scan] Length: ${data.length}, Category: ${data.category}`);
+    if (!data) return;
+    appendSystemChatMessage(`🔍 [Word Scan] Length: ${data.length} letters • Category: ${data.category}`, "#38bdf8");
+    const canvasWrap = document.getElementById("game-canvas");
+    if (canvasWrap) {
+      let scanPill = document.getElementById("evo-word-scan-pill");
+      if (!scanPill) {
+        scanPill = document.createElement("div");
+        scanPill.id = "evo-word-scan-pill";
+        scanPill.className = "evolution-hud-pill";
+        canvasWrap.appendChild(scanPill);
+      }
+      scanPill.innerHTML = `🔍 <b>WORD SCAN:</b> ${data.length} letters &bull; Topic: <span style="color:#fde047">${escapeHtml(data.category)}</span>`;
+      scanPill.classList.add("visible");
+      if (scanPill._timer) clearTimeout(scanPill._timer);
+      scanPill._timer = setTimeout(() => {
+        scanPill.classList.remove("visible");
+      }, 8000);
+    }
   }
 
   function onPatternSense(data) {
-    console.log(`[Pattern Sense] First: ${data.first}, Last: ${data.last}`);
+    if (!data) return;
+    appendSystemChatMessage(`🔮 [Pattern Sense] First letter: '${data.first.toUpperCase()}', Last letter: '${data.last.toUpperCase()}'`, "#38bdf8");
+    const hintsContainer = document.querySelector("#game-word .hints .container");
+    if (hintsContainer) {
+      const hintElements = hintsContainer.querySelectorAll(".hint");
+      if (hintElements.length > 0) {
+        hintElements[0].textContent = data.first;
+        hintElements[0].classList.add("uncover", "evolution-hint");
+        const lastEl = hintElements[hintElements.length - 1];
+        lastEl.textContent = data.last;
+        lastEl.classList.add("uncover", "evolution-hint");
+      }
+    }
   }
 
+  let colorBurstTimeout = null;
   function onColorBurst(data) {
-    console.log("[Color Burst] Bonus colors available!");
+    const duration = (data && data.duration) || 30;
+    appendSystemChatMessage(`🎨 [Color Burst] 6 vibrant bonus colors unlocked on toolbar for ${duration}s!`, "#a855f7");
+    const toolbar = document.querySelector("#game-toolbar .colors");
+    if (toolbar) {
+      toolbar.classList.add("color-burst-active");
+    }
+    if (colorBurstTimeout) clearTimeout(colorBurstTimeout);
+    colorBurstTimeout = setTimeout(() => {
+      if (toolbar) toolbar.classList.remove("color-burst-active");
+    }, duration * 1000);
   }
 
   function onPerfectLine(data) {
-    console.log("[Perfect Line] Straight line assist active!");
+    const duration = (data && data.duration) || 25;
+    appendSystemChatMessage(`📐 [Perfect Line] Line assist active for ${duration}s! Strokes snap straight.`, "#22c55e");
   }
 
   // Keyboard shortcut listener for keys 1, 2, 3, 4

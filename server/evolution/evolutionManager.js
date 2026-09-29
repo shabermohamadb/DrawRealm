@@ -1,5 +1,6 @@
 /**
  * Room-level Evolution Mode Manager
+ * Authoritative Server Power Engine
  */
 
 const { EVOLUTION_LEVELS, EVOLUTION_XP } = require("./config");
@@ -12,8 +13,9 @@ class EvolutionManager {
     this.room = room;
     this.players = new Map(); // playerId -> state
     this.lastActionTimes = new Map(); // playerId -> timestamp (anti-spam)
+    this.processedRequestIds = new Map(); // requestId -> timestamp (idempotency)
     this.activeRoomModifiers = new Map(); // key -> { expiresAt, data }
-    this.pointBomb = null; // { active: bool, expiresAt: number }
+    this.pointBomb = null; // { active: bool, expiresAt: number, placedBy: number }
   }
 
   isEvolutionMode() {
@@ -54,6 +56,17 @@ class EvolutionManager {
       }
     }
 
+    // Initialize usesRemaining map for limited powers
+    const usesRemaining = new Map();
+    for (const pId of profile.equippedPowers) {
+      if (POWERS[pId] && POWERS[pId].maxUses !== null) {
+        usesRemaining.set(pId, POWERS[pId].maxUses);
+      }
+    }
+    if (profile.ultimatePower && POWERS[profile.ultimatePower] && POWERS[profile.ultimatePower].maxUses !== null) {
+      usesRemaining.set(profile.ultimatePower, POWERS[profile.ultimatePower].maxUses);
+    }
+
     const state = {
       playerId: player.id,
       name: player.name,
@@ -62,6 +75,7 @@ class EvolutionManager {
       equippedPowers: [...profile.equippedPowers],
       ultimatePower: profile.ultimatePower,
       cooldowns: new Map(), // powerId -> expiresAt
+      usesRemaining: usesRemaining, // powerId -> remainingCount
       streak: 0,
       buffs: {
         scoreSurge: false,
@@ -74,6 +88,8 @@ class EvolutionManager {
         secondThought: false,
         colorBurstUntil: 0,
         shapeAssist: false,
+        magicBrushUntil: 0,
+        trailBrushUntil: 0,
         overdrive: false
       },
       pendingDraft: null
@@ -99,16 +115,25 @@ class EvolutionManager {
     const currentLevelData = EVOLUTION_LEVELS[state.level];
     const profile = storage.getProfile(player.name);
 
-    // Format cooldowns as seconds remaining
+    // Format cooldowns as remaining seconds and absolute timestamps
     const now = Date.now();
     const cooldownsObj = {};
+    const cooldownEndsAtObj = {};
     for (const [pId, exp] of state.cooldowns.entries()) {
       if (exp > now) {
         cooldownsObj[pId] = Math.ceil((exp - now) / 1000);
+        cooldownEndsAtObj[pId] = exp;
       }
     }
 
+    // Format uses remaining
+    const usesRemainingObj = {};
+    for (const [pId, count] of state.usesRemaining.entries()) {
+      usesRemainingObj[pId] = count;
+    }
+
     const payload = {
+      playerId: player.id,
       isEvolutionMode: this.isEvolutionMode(),
       level: state.level,
       title: currentLevelData.title,
@@ -121,11 +146,23 @@ class EvolutionManager {
       ultimatePower: state.ultimatePower ? (POWERS[state.ultimatePower] || null) : null,
       unlockedPowers: (profile.unlockedPowers || []).map(pId => POWERS[pId] || null).filter(Boolean),
       cooldowns: cooldownsObj,
+      cooldownEndsAt: cooldownEndsAtObj,
+      usesRemaining: usesRemainingObj,
       streak: state.streak,
       buffs: {
+        scoreSurge: state.buffs.scoreSurge,
+        doubleStrike: state.buffs.doubleStrike,
+        bullseye: state.buffs.bullseye,
         shield: state.buffs.shield,
         scoreLock: state.buffs.scoreLockUntil > now,
-        colorBurst: state.buffs.colorBurstUntil > now
+        freezeGuard: state.buffs.freezeGuardUntil > now,
+        ghostGuess: state.buffs.ghostGuess,
+        secondThought: state.buffs.secondThought,
+        colorBurst: state.buffs.colorBurstUntil > now,
+        shapeAssist: state.buffs.shapeAssist,
+        magicBrush: state.buffs.magicBrushUntil > now,
+        trailBrush: state.buffs.trailBrushUntil > now,
+        overdrive: state.buffs.overdrive
       },
       pendingDraft: state.pendingDraft
     };
@@ -316,6 +353,8 @@ class EvolutionManager {
       state.buffs.scoreSurge = false;
       state.buffs.bullseye = false;
       state.buffs.shapeAssist = false;
+      state.buffs.magicBrushUntil = 0;
+      state.buffs.trailBrushUntil = 0;
       state.buffs.overdrive = false;
 
       // Reset streak if player didn't guess
@@ -361,7 +400,6 @@ class EvolutionManager {
       if (state.equippedPowers.length < 3) {
         state.equippedPowers.push(chosen.id);
       } else {
-        // Replace oldest or swap
         state.equippedPowers.shift();
         state.equippedPowers.push(chosen.id);
       }
@@ -370,6 +408,10 @@ class EvolutionManager {
 
     if (!profile.unlockedPowers.includes(chosen.id)) {
       profile.unlockedPowers.push(chosen.id);
+    }
+
+    if (chosen.maxUses !== null) {
+      state.usesRemaining.set(chosen.id, chosen.maxUses);
     }
 
     state.pendingDraft = null;
@@ -385,112 +427,222 @@ class EvolutionManager {
   }
 
   /**
-   * Server-side power activation with validation and anti-exploit
+   * Server-side power activation with authoritative 10-point validation and anti-exploit
    */
-  activatePower(player, powerId) {
-    if (!this.isEvolutionMode()) return { success: false, reason: "Not Evolution Mode" };
+  activatePower(player, requestData) {
+    let powerId = "";
+    let targetId = null;
+    let powerRequestId = null;
 
+    if (typeof requestData === "object" && requestData !== null) {
+      powerId = requestData.powerId;
+      targetId = requestData.targetId;
+      powerRequestId = requestData.powerRequestId;
+    } else {
+      powerId = String(requestData || "");
+    }
+
+    const reject = (reason) => {
+      if (player && player.socket) {
+        player.socket.emit("evolution:power_error", {
+          powerId,
+          reason
+        });
+      }
+      return { success: false, reason };
+    };
+
+    // 1. Player check
+    if (!player) return { success: false, reason: "Player does not exist" };
+    if (!this.room.players.has(player.id)) return reject("Player is not in the room");
+
+    // 2. Mode check
+    if (!this.isEvolutionMode()) return reject("Room is not in Evolution Mode");
+
+    // 3. Active match check (powers can only be used during active gameplay)
+    const game = this.room.game;
+    if (!game || (game.state !== 3 && game.state !== 4)) {
+      return reject("Powers can only be activated during an active match");
+    }
+
+    // 4. State check
     const state = this.players.get(player.id);
-    if (!state) return { success: false, reason: "Player state not found" };
+    if (!state) return reject("Player evolution state not found");
 
-    const power = POWERS[powerId];
-    if (!power) return { success: false, reason: "Invalid power" };
-
-    // Anti-spam rate limiting: 1 activation per 1000ms
+    // 5. Idempotency protection against double clicks
     const now = Date.now();
+    if (powerRequestId) {
+      if (this.processedRequestIds.has(powerRequestId)) {
+        return { success: true, ignored: true };
+      }
+      this.processedRequestIds.set(powerRequestId, now);
+      // Clean up requests older than 15s
+      for (const [rId, t] of this.processedRequestIds.entries()) {
+        if (now - t > 15000) this.processedRequestIds.delete(rId);
+      }
+    }
+
+    // 6. Anti-spam rate limiting: minimum 250ms between actions
     const lastAction = this.lastActionTimes.get(player.id) || 0;
-    if (now - lastAction < 1000) {
-      return { success: false, reason: "Action rate limit exceeded" };
+    if (now - lastAction < 250) {
+      return reject("Please wait a moment before activating another power");
     }
     this.lastActionTimes.set(player.id, now);
 
-    // Verify ownership
-    const isEquipped = state.equippedPowers.includes(powerId) || state.ultimatePower === powerId;
-    if (!isEquipped) {
-      return { success: false, reason: "Power not equipped" };
+    // 7. Power definition check
+    const power = POWERS[powerId];
+    if (!power) return reject("Invalid power ID");
+
+    // 8. Level requirement check
+    if (state.level < (power.levelReq || 1)) {
+      return reject(`Evolution Level ${power.levelReq} required to use this power`);
     }
 
-    // Verify cooldown
+    // 9. Ownership check
+    const profile = storage.getProfile(player.name);
+    const unlocked = profile.unlockedPowers || [];
+    if (!unlocked.includes(powerId) && !state.equippedPowers.includes(powerId) && state.ultimatePower !== powerId) {
+      return reject("You have not unlocked this power yet");
+    }
+
+    // 10. Equipped check
+    const isEquipped = state.equippedPowers.includes(powerId) || state.ultimatePower === powerId;
+    if (!isEquipped) {
+      return reject("Power is not currently equipped in your active slots");
+    }
+
+    // 11. Uses remaining check
+    if (power.maxUses !== null) {
+      const remaining = state.usesRemaining.has(powerId) ? state.usesRemaining.get(powerId) : power.maxUses;
+      if (remaining <= 0) {
+        return reject("No uses remaining for this power in this match");
+      }
+    }
+
+    // 12. Cooldown check
     const cooldownExpires = state.cooldowns.get(powerId) || 0;
     if (now < cooldownExpires) {
       const waitSec = Math.ceil((cooldownExpires - now) / 1000);
-      return { success: false, reason: `Power on cooldown (${waitSec}s)` };
+      return reject(`Power is on cooldown (${waitSec}s remaining)`);
     }
 
-    // Validate game phase (must be in DRAWING or WORD_CHOICE)
-    const game = this.room.game;
-    if (game.state !== 4 && game.state !== 3) {
-      return { success: false, reason: "Cannot use powers outside active rounds" };
+    // 13. Allowed match phase check
+    if (Array.isArray(power.allowedPhases) && !power.allowedPhases.includes(game.state)) {
+      if (game.state === 3 && power.allowedPhases.includes(4)) {
+        return reject("This power can only be used during the drawing phase");
+      }
+      return reject("Cannot use this power in the current round phase");
     }
 
+    // 14. Role check (drawer vs guesser)
     const isDrawer = player.id === game.currentDrawerId;
-    const profile = storage.getProfile(player.name);
+    if (power.allowedRoles === "drawer" && !isDrawer) {
+      return reject("Only the active drawer can use this power");
+    }
+    if (power.allowedRoles === "guesser" && isDrawer) {
+      return reject("The active drawer cannot use guessing/attack powers");
+    }
+    if (power.allowedRoles === "guesser" && player.guessed) {
+      return reject("You have already correctly guessed the word this turn");
+    }
+
+    // 14. Target validation (for target powers like score_steal)
+    let target = null;
+    if (power.targetType === "opponent") {
+      if (targetId !== null && targetId !== undefined) {
+        const parsedTId = parseInt(targetId, 10);
+        target = this.room.players.get(parsedTId);
+        if (!target) return reject("Target player not found in the room");
+        if (target.id === player.id) return reject("Cannot target yourself");
+      } else {
+        // Fallback: target highest-scoring opponent
+        const opponents = this.room.getActivePlayers().filter(p => p.id !== player.id);
+        opponents.sort((a, b) => b.score - a.score);
+        target = opponents[0] || null;
+      }
+      if (!target) return reject("No valid opponent available to target");
+    }
+
     if (!profile.stats) profile.stats = {};
 
     // ==========================================
-    // EXECUTE POWER EFFECTS
+    // EXECUTE AUTHORITATIVE POWER EFFECTS
     // ==========================================
     let broadcastMsg = `${player.name} activated ${power.name}!`;
     let privateMsg = "";
+    let effectData = { type: power.id };
 
     switch (power.id) {
       // --- ATTACK ---
       case "score_surge":
         state.buffs.scoreSurge = true;
-        privateMsg = "Score Surge active! Your next correct guess earns +50% bonus score.";
+        effectData = { type: "score_surge" };
+        privateMsg = "⚡ Score Surge active! Your next correct guess earns +50% bonus points.";
         break;
 
       case "point_bomb":
-        this.pointBomb = { active: true, expiresAt: now + 10000 };
-        broadcastMsg = ` ${player.name} dropped a Point Bomb! Next correct guess in 10s gets +100 bonus pts!`;
+        this.pointBomb = { active: true, expiresAt: now + 10000, placedBy: player.id };
+        effectData = { type: "point_bomb", duration: 10 };
+        broadcastMsg = `💣 ${player.name} dropped a Point Bomb! Next correct guess in 10s gets +100 bonus pts!`;
         break;
 
       case "score_steal": {
-        // Target top player other than self
-        const opponents = this.room.getActivePlayers().filter(p => p.id !== player.id);
-        opponents.sort((a, b) => b.score - a.score);
-        const target = opponents[0];
-        if (target) {
-          const targetState = this.players.get(target.id);
-          if (targetState && (targetState.buffs.shield || targetState.buffs.scoreLockUntil > now)) {
-            if (targetState.buffs.shield) targetState.buffs.shield = false;
-            broadcastMsg = ` ${target.name}'s Shield blocked ${player.name}'s Score Steal!`;
-            if (targetState) {
-              const targetProfile = storage.getProfile(target.name);
-              targetProfile.stats.shieldsUsed = (targetProfile.stats.shieldsUsed || 0) + 1;
-              checkAchievements(targetProfile);
-            }
+        const targetState = this.players.get(target.id);
+        if (targetState && (targetState.buffs.shield || targetState.buffs.scoreLockUntil > now)) {
+          if (targetState.buffs.shield) {
+            targetState.buffs.shield = false; // Shield blocks & is consumed!
+            broadcastMsg = `🛡️ ${target.name}'s Shield blocked ${player.name}'s Score Steal!`;
+            const targetProfile = storage.getProfile(target.name);
+            targetProfile.stats.shieldsUsed = (targetProfile.stats.shieldsUsed || 0) + 1;
+            checkAchievements(targetProfile);
+            this.syncPlayerState(target);
           } else {
-            const stealAmount = Math.min(40, target.score);
-            target.score -= stealAmount;
-            player.score += stealAmount;
-            broadcastMsg = ` ${player.name} stole ${stealAmount} points from ${target.name}!`;
+            broadcastMsg = `🔒 ${target.name}'s Score Lock blocked ${player.name}'s Score Steal!`;
           }
+          effectData = { type: "score_steal", blocked: true, targetId: target.id };
+        } else {
+          const stealAmount = Math.min(40, Math.max(0, target.score));
+          target.score = Math.max(0, target.score - stealAmount);
+          player.score += stealAmount;
+          broadcastMsg = `🦹 ${player.name} stole ${stealAmount} points from ${target.name}!`;
+          effectData = { type: "score_steal", amount: stealAmount, targetId: target.id };
         }
         break;
       }
 
       case "double_strike":
         state.buffs.doubleStrike = 2;
-        privateMsg = "Double Strike active! Your next two guesses earn +30% bonus points.";
+        effectData = { type: "double_strike", charges: 2 };
+        privateMsg = "⚔️ Double Strike active! Your next two guesses earn +30% bonus points.";
         break;
 
       case "bullseye":
         state.buffs.bullseye = true;
-        privateMsg = "Bullseye primed! Guess correctly in the first 15s for +100 bonus pts.";
+        effectData = { type: "bullseye" };
+        privateMsg = "🎯 Bullseye primed! Guess correctly in the first 15s for +100 bonus pts.";
         break;
 
-      // --- GUESSING ---
+      // --- GUESSING / INTELLIGENCE ---
       case "letter_vision": {
         const secret = game.secretWord || "";
         const unrevealed = [];
         for (let i = 0; i < secret.length; i++) {
-          if (secret[i] !== " ") unrevealed.push({ idx: i, char: secret[i] });
+          if (secret[i] !== " " && !game.revealedHintIndices.has(i)) {
+            unrevealed.push({ idx: i, char: secret[i] });
+          }
+        }
+        if (unrevealed.length === 0) {
+          for (let i = 0; i < secret.length; i++) {
+            if (secret[i] !== " ") unrevealed.push({ idx: i, char: secret[i] });
+          }
         }
         if (unrevealed.length > 0) {
           const pick = unrevealed[Math.floor(Math.random() * unrevealed.length)];
           player.socket.emit("evolution:letter_vision", { index: pick.idx, letter: pick.char });
-          privateMsg = `Letter Vision revealed letter #${pick.idx + 1}: '${pick.char.toUpperCase()}'!`;
+          effectData = { type: "letter_vision", index: pick.idx, letter: pick.char };
+          privateMsg = `👁️ Letter Vision revealed letter #${pick.idx + 1}: '${pick.char.toUpperCase()}'!`;
+        } else {
+          return reject("No unrevealed letters left to scan");
         }
         break;
       }
@@ -498,93 +650,96 @@ class EvolutionManager {
       case "word_scan": {
         const secret = game.secretWord || "";
         const len = secret.replace(/ /g, "").length;
-        const categories = ["Object", "Nature", "Animal", "Food", "Action", "Person", "Place"];
+        const categories = ["Object", "Nature", "Animal", "Food", "Action", "Person", "Place", "Sci-Fi"];
         const hash = secret.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
         const cat = categories[hash % categories.length];
         player.socket.emit("evolution:word_scan", { length: len, category: cat });
-        privateMsg = `Word Scan: Secret word has ${len} letters. Category: [${cat}]`;
+        effectData = { type: "word_scan", length: len, category: cat };
+        privateMsg = `🔍 Word Scan: Secret word has ${len} letters. Category: [${cat}]`;
         break;
       }
 
       case "pattern_sense": {
-        const secret = game.secretWord || "";
+        const secret = (game.secretWord || "").trim();
         if (secret.length > 0) {
           const firstChar = secret[0].toUpperCase();
           const lastChar = secret[secret.length - 1].toUpperCase();
           const vowels = ["A", "E", "I", "O", "U"];
           const isVowel = vowels.includes(firstChar);
           player.socket.emit("evolution:pattern_sense", { first: firstChar, last: lastChar });
-          privateMsg = `Pattern Sense: Starts with '${firstChar}' (${isVowel ? "Vowel" : "Consonant"}) and ends with '${lastChar}'.`;
+          effectData = { type: "pattern_sense", first: firstChar, last: lastChar };
+          privateMsg = `🧩 Pattern Sense: Starts with '${firstChar}' (${isVowel ? "Vowel" : "Consonant"}) and ends with '${lastChar}'.`;
+        } else {
+          return reject("Secret word not available");
         }
         break;
       }
 
       case "hint_pulse": {
-        const secret = game.secretWord || "";
+        const secret = (game.secretWord || "").toLowerCase();
         const vowels = ["a", "e", "i", "o", "u"];
-        const vowelCount = secret.split("").filter(c => vowels.includes(c.toLowerCase())).length;
-        privateMsg = `Hint Pulse: The secret word contains ${vowelCount} vowels and ${secret.length} characters.`;
+        const vowelCount = secret.split("").filter(c => vowels.includes(c)).length;
+        const consonantCount = secret.replace(/[^a-z]/g, "").length - vowelCount;
+        effectData = { type: "hint_pulse", vowelCount, consonantCount, total: secret.length };
+        privateMsg = `💡 Hint Pulse: ${vowelCount} vowels, ${consonantCount} consonants, ${secret.length} total characters.`;
         break;
       }
 
       case "second_thought":
         state.buffs.secondThought = true;
-        privateMsg = "Second Thought active: Protected against next wrong guess penalty.";
+        effectData = { type: "second_thought" };
+        privateMsg = "💭 Second Thought active: Protected against next wrong guess spam penalty.";
         break;
 
       case "ghost_guess":
         state.buffs.ghostGuess = true;
-        privateMsg = "Ghost Guess active: Your next close guess within 2 letters will count as correct!";
+        effectData = { type: "ghost_guess" };
+        privateMsg = "👻 Ghost Guess active: Your next close guess within 2 letters will count as correct!";
         break;
 
-      // --- DRAWING ---
+      // --- DRAWING / CREATOR ---
       case "magic_brush":
-        if (isDrawer) {
-          this.room.broadcastCustom("evolution:effect", { type: "magic_brush", duration: 25 });
-          broadcastMsg = ` ${player.name} activated Magic Rainbow Brush!`;
-        } else {
-          return { success: false, reason: "Only drawer can use Magic Brush" };
-        }
+        state.buffs.magicBrushUntil = now + 25000;
+        effectData = { type: "magic_brush", duration: 25, drawerId: player.id };
+        this.room.broadcastCustom("evolution:effect", effectData);
+        broadcastMsg = `🖌️ ${player.name} activated Magic Rainbow Brush!`;
         break;
 
       case "shape_assist":
-        if (isDrawer) {
-          state.buffs.shapeAssist = true;
-          this.room.broadcastCustom("evolution:effect", { type: "shape_assist", duration: 30 });
-          privateMsg = "Shape Assist active: Next strokes automatically smoothed into straight geometry.";
-        } else {
-          return { success: false, reason: "Only drawer can use Shape Assist" };
-        }
+        state.buffs.shapeAssist = true;
+        effectData = { type: "shape_assist", duration: 30 };
+        player.socket.emit("evolution:effect", effectData);
+        privateMsg = "📐 Shape Assist active: Next strokes automatically smoothed into straight geometry.";
         break;
 
       case "color_burst":
         state.buffs.colorBurstUntil = now + 30000;
-        player.socket.emit("evolution:color_burst", { duration: 30 });
-        privateMsg = "Color Burst: 6 bonus vibrant palette swatches unlocked for 30s!";
+        effectData = { type: "color_burst", duration: 30 };
+        player.socket.emit("evolution:color_burst", effectData);
+        privateMsg = "🎨 Color Burst: 6 vibrant bonus colors unlocked on toolbar for 30s!";
         break;
 
       case "perfect_line":
-        if (isDrawer) {
-          player.socket.emit("evolution:perfect_line", { duration: 20 });
-          privateMsg = "Perfect Line primed: Click start and drag to snap a ruler-straight line.";
-        } else {
-          return { success: false, reason: "Only drawer can use Perfect Line" };
-        }
+        effectData = { type: "perfect_line", duration: 20 };
+        player.socket.emit("evolution:perfect_line", effectData);
+        privateMsg = "📏 Perfect Line primed: Click down and release to draw a ruler-straight line.";
         break;
 
       case "trail_brush":
-        if (isDrawer) {
-          this.room.broadcastCustom("evolution:effect", { type: "trail_brush", duration: 20 });
-          broadcastMsg = ` ${player.name} activated Shimmering Trail Brush!`;
-        }
+        state.buffs.trailBrushUntil = now + 20000;
+        effectData = { type: "trail_brush", duration: 20 };
+        this.room.broadcastCustom("evolution:effect", effectData);
+        broadcastMsg = `✨ ${player.name} activated Shimmering Trail Brush!`;
         break;
 
       case "instant_clean":
-        if (isDrawer && game.room.drawCommands.length > 0) {
-          // Revert last 3 commands
+        if (game.room.drawCommands.length > 0) {
           game.room.drawCommands = game.room.drawCommands.slice(0, Math.max(0, game.room.drawCommands.length - 3));
           this.room.broadcast({ id: 21, data: game.room.drawCommands.length });
-          privateMsg = "Instant Clean: Reverted your latest 3 drawing strokes.";
+          effectData = { type: "instant_clean", remainingCommands: game.room.drawCommands.length };
+          privateMsg = "🧹 Instant Clean: Reverted your latest 3 drawing strokes.";
+        } else {
+          return reject("Canvas has no strokes to revert");
         }
         break;
 
@@ -593,80 +748,128 @@ class EvolutionManager {
         state.buffs.shield = true;
         profile.stats.shieldsUsed = (profile.stats.shieldsUsed || 0) + 1;
         checkAchievements(profile);
-        privateMsg = " Shield activated: Protected against the next steal or penalty.";
+        effectData = { type: "shield" };
+        privateMsg = "🛡️ Shield activated: Protected against the next steal or penalty.";
         break;
 
       case "second_life":
         state.buffs.shield = true;
         state.buffs.scoreLockUntil = now + 30000;
-        privateMsg = " Second Life: Score locked and shield granted for 30 seconds.";
+        state.usesRemaining.set("second_life", 0);
+        effectData = { type: "second_life", duration: 30 };
+        privateMsg = "💖 Second Life: Shield granted and score locked for 30 seconds! (1 use per match)";
         break;
 
       case "time_guard":
         if (game.timeLeft > 0) {
-          game.timeLeft = Math.min(100, game.timeLeft + 5);
-          broadcastMsg = ` ${player.name} activated Time Guard (+5s added to timer)!`;
+          const drawTime = parseInt(this.room.settings[2]) || 80;
+          game.timeLeft = Math.min(drawTime, game.timeLeft + 5);
+          effectData = { type: "time_guard", addedSeconds: 5, newTime: game.timeLeft };
+          broadcastMsg = `⏳ ${player.name} activated Time Guard (+5s added to timer)!`;
         }
         break;
 
       case "score_lock":
         state.buffs.scoreLockUntil = now + 45000;
-        privateMsg = "Score Lock: Your score is immune to steals for 45s.";
+        effectData = { type: "score_lock", duration: 45 };
+        privateMsg = "🔒 Score Lock: Your score is immune to steals for 45s.";
         break;
 
       case "freeze_guard":
         state.buffs.freezeGuardUntil = now + 50000;
-        privateMsg = " Freeze Guard: Immune to enemy chaos modifiers for 50s.";
+        effectData = { type: "freeze_guard", duration: 50 };
+        privateMsg = "❄️ Freeze Guard: Immune to enemy chaos modifiers for 50s.";
         break;
 
       // --- CHAOS ---
       case "randomizer": {
         const mods = [
           { name: "Double XP Burst", action: () => { this.addXP(player, 15, "Randomizer Double XP"); } },
-          { name: "Speed Rush (+10s)", action: () => { game.timeLeft = Math.min(90, game.timeLeft + 10); } },
-          { name: "Free Letter Hint", action: () => { game.revealHint(); } }
+          { name: "Speed Rush (+10s)", action: () => { const dt = parseInt(this.room.settings[2]) || 80; game.timeLeft = Math.min(dt, game.timeLeft + 10); } },
+          { name: "Free Letter Hint", action: () => { game.revealHint(); } },
+          { name: "Point Splash (+25 pts to guessers)", action: () => {
+              for (const p of this.room.players.values()) {
+                if (p.id !== game.currentDrawerId) p.score += 25;
+              }
+            }
+          }
         ];
         const chosenMod = mods[Math.floor(Math.random() * mods.length)];
         chosenMod.action();
-        broadcastMsg = ` ${player.name} rolled the Randomizer: ${chosenMod.name}!`;
+        broadcastMsg = `🎲 ${player.name} rolled the Randomizer: ${chosenMod.name}!`;
+        effectData = { type: "randomizer", modifier: chosenMod.name };
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
       }
 
-      case "reverse_canvas":
-        this.room.broadcastCustom("evolution:effect", { type: "reverse_canvas", duration: 15 });
-        broadcastMsg = ` ${player.name} reversed the drawing canvas for 15 seconds!`;
+      case "reverse_canvas": {
+        const immunePlayerIds = [];
+        for (const [pId, pState] of this.players.entries()) {
+          if (pId === player.id) continue;
+          if (pState.buffs.freezeGuardUntil > now) {
+            immunePlayerIds.push(pId);
+          } else if (pState.buffs.shield) {
+            pState.buffs.shield = false;
+            immunePlayerIds.push(pId);
+            const targetP = this.room.players.get(pId);
+            if (targetP && targetP.socket) {
+              targetP.socket.emit("data", { id: 30, data: { id: 0, msg: "🛡️ Your Shield blocked Reverse Canvas!" } });
+            }
+            this.syncPlayerState(this.room.players.get(pId));
+          }
+        }
+        effectData = { type: "reverse_canvas", duration: 15, immunePlayerIds };
+        this.room.broadcastCustom("evolution:effect", effectData);
+        broadcastMsg = `🔄 ${player.name} reversed the drawing canvas for 15 seconds!`;
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
+      }
 
-      case "chaos_brush":
-        this.room.broadcastCustom("evolution:effect", { type: "chaos_brush", duration: 10 });
-        broadcastMsg = ` Chaos Brush activated by ${player.name}: Maximum brush size locked for 10s!`;
+      case "chaos_brush": {
+        const drawer = this.room.players.get(game.currentDrawerId);
+        const drawerState = drawer ? this.players.get(drawer.id) : null;
+        if (drawerState && (drawerState.buffs.freezeGuardUntil > now || drawerState.buffs.shield)) {
+          if (drawerState.buffs.shield) drawerState.buffs.shield = false;
+          broadcastMsg = `🛡️ ${drawer.name}'s defense blocked Chaos Brush!`;
+          effectData = { type: "chaos_brush", blocked: true };
+          this.syncPlayerState(drawer);
+        } else {
+          effectData = { type: "chaos_brush", duration: 10 };
+          this.room.broadcastCustom("evolution:effect", effectData);
+          broadcastMsg = `🌀 Chaos Brush activated by ${player.name}: Maximum brush size locked for 10s!`;
+        }
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
+      }
 
       case "time_warp": {
         const delta = Math.random() < 0.5 ? 5 : -5;
-        game.timeLeft = Math.max(15, Math.min(90, game.timeLeft + delta));
-        broadcastMsg = ` ${player.name} warped time by ${delta > 0 ? "+5" : "-5"} seconds!`;
+        const drawTime = parseInt(this.room.settings[2]) || 80;
+        game.timeLeft = Math.max(15, Math.min(drawTime, game.timeLeft + delta));
+        broadcastMsg = `⏰ ${player.name} warped time by ${delta > 0 ? "+5" : "-5"} seconds!`;
+        effectData = { type: "time_warp", delta, newTime: game.timeLeft };
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
       }
 
-      case "ghost_canvas":
-        this.room.broadcastCustom("evolution:effect", { type: "ghost_canvas", duration: 12 });
-        broadcastMsg = ` Ghost Canvas summoned by ${player.name}!`;
+      case "ghost_canvas": {
+        const ghostStrokes = game.lastRoundCanvas || [];
+        effectData = { type: "ghost_canvas", duration: 12, commands: ghostStrokes };
+        this.room.broadcastCustom("evolution:effect", effectData);
+        broadcastMsg = `🌫️ Ghost Canvas summoned by ${player.name}!`;
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
+      }
 
       case "mystery_rule":
-        broadcastMsg = `MYSTERY RULE: Next guesser receives +50 bonus XP and +50 points!`;
-        this.pointBomb = { active: true, expiresAt: now + 20000 };
+        this.pointBomb = { active: true, expiresAt: now + 20000, placedBy: player.id };
+        broadcastMsg = `❓ MYSTERY RULE: Next guesser receives +50 bonus XP and +50 points!`;
+        effectData = { type: "mystery_rule", duration: 20 };
         profile.stats.chaosUsed = (profile.stats.chaosUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -675,54 +878,67 @@ class EvolutionManager {
       case "power_chain":
         state.buffs.scoreSurge = true;
         state.buffs.bullseye = true;
-        privateMsg = "Power Chain: Score Surge AND Bullseye activated together!";
+        effectData = { type: "power_chain" };
+        privateMsg = "🔗 Power Chain: Score Surge AND Bullseye activated together!";
         break;
 
       case "mutation":
-        privateMsg = "Mutation complete: Cooldowns refreshed and powers charged!";
         state.cooldowns.clear();
+        effectData = { type: "mutation" };
+        privateMsg = "🧬 Mutation complete: Cooldowns instantly refreshed across all equipped powers!";
         break;
 
       case "evolution_choice":
         state.pendingDraft = rollDraftChoices(state.level, null, state.equippedPowers);
-        privateMsg = "Evolution Choice: 3 new powers offered for draft!";
+        effectData = { type: "evolution_choice" };
+        privateMsg = "📜 Evolution Choice: 3 new powers offered for draft!";
         break;
 
       case "power_swap": {
-        const available = rollDraftChoices(state.level, null, state.equippedPowers);
+        const available = (profile.unlockedPowers || []).filter(pId => !state.equippedPowers.includes(pId) && pId !== state.ultimatePower && pId !== "power_swap");
         if (available.length > 0) {
-          const newPower = available[0];
-          state.equippedPowers = state.equippedPowers.filter(p => p !== "power_swap");
-          state.equippedPowers.push(newPower.id);
-          broadcastMsg = ` ${player.name} swapped power for ${newPower.name}!`;
+          const newPower = available[Math.floor(Math.random() * available.length)];
+          const pObj = POWERS[newPower];
+          state.equippedPowers = state.equippedPowers.map(pId => pId === "power_swap" ? newPower : pId);
+          profile.equippedPowers = [...state.equippedPowers];
+          storage.save();
+          broadcastMsg = `🔃 ${player.name} swapped power for ${pObj.name}!`;
+          effectData = { type: "power_swap", newPower };
+        } else {
+          return reject("No other unlocked powers available to swap");
         }
         break;
       }
 
       case "rare_drop": {
-        const pool = Object.values(POWERS).filter(p => p.rarity === "EPIC" || p.rarity === "LEGENDARY");
-        const roll = pool[Math.floor(Math.random() * pool.length)];
-        if (roll) {
-          if (state.equippedPowers.length >= 3) state.equippedPowers.shift();
-          state.equippedPowers.push(roll.id);
-          broadcastMsg = `RARE DROP! ${player.name} received ${roll.name}!`;
+        const pool = Object.values(POWERS).filter(p => !p.isUltimate && (p.rarity === "EPIC" || p.rarity === "LEGENDARY") && !profile.unlockedPowers.includes(p.id));
+        const roll = pool[Math.floor(Math.random() * pool.length)] || Object.values(POWERS).find(p => p.rarity === "EPIC");
+        if (roll && !profile.unlockedPowers.includes(roll.id)) {
+          profile.unlockedPowers.push(roll.id);
         }
+        broadcastMsg = `🎁 RARE DROP! ${player.name} received ${roll.name}!`;
+        effectData = { type: "rare_drop", unlockedPower: roll.id };
+        storage.save();
         break;
       }
 
       // --- ULTIMATE POWERS ---
-      case "reality_shift":
-        game.timeLeft = Math.min(90, game.timeLeft + 15);
-        this.pointBomb = { active: true, expiresAt: now + 15000 };
-        broadcastMsg = `REALITY SHIFT! ${player.name} altered the game reality (+15s & Point Event)!`;
+      case "reality_shift": {
+        const drawTime = parseInt(this.room.settings[2]) || 80;
+        game.timeLeft = Math.min(drawTime, game.timeLeft + 15);
+        this.pointBomb = { active: true, expiresAt: now + 15000, placedBy: player.id };
+        broadcastMsg = `🌌 REALITY SHIFT! ${player.name} altered reality (+15s clock & 15s Point Event)!`;
+        effectData = { type: "reality_shift", addedSeconds: 15 };
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
+      }
 
       case "overdrive":
         state.buffs.overdrive = true;
-        privateMsg = "OVERDRIVE ACTIVE: +50% score boost and +10 bonus XP on correct guesses!";
-        broadcastMsg = ` ${player.name} entered OVERDRIVE!`;
+        effectData = { type: "overdrive" };
+        privateMsg = "⚡🔥 OVERDRIVE ACTIVE: +50% score boost and +10 bonus XP on correct guesses!";
+        broadcastMsg = `⚡🔥 ${player.name} entered OVERDRIVE!`;
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -732,7 +948,9 @@ class EvolutionManager {
         const len = secret.length;
         const chars = secret.split("").filter(c => c !== " ");
         const revealed = chars.slice(0, 3).join(", ").toUpperCase();
-        privateMsg = ` OMNISCIENCE: Letters revealed: [${revealed}], Total length: ${len}`;
+        player.socket.emit("evolution:letter_vision", { index: 0, letter: secret[0] || "" });
+        effectData = { type: "omniscience", length: len, revealed };
+        privateMsg = `🔮 OMNISCIENCE: Letters revealed: [${revealed}], Total length: ${len}`;
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
@@ -742,28 +960,39 @@ class EvolutionManager {
         state.buffs.scoreSurge = true;
         state.buffs.doubleStrike = 2;
         state.buffs.shield = true;
-        broadcastMsg = ` ${player.name} ASCENDED TO FINAL FORM! All powers unlocked for this round!`;
+        effectData = { type: "final_form" };
+        broadcastMsg = `👑 ${player.name} ASCENDED TO FINAL FORM! All power buffs active!`;
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
 
-      case "apocalypse":
+      case "apocalypse": {
         for (const p of this.room.players.values()) {
           p.score += 50;
         }
-        game.timeLeft = Math.min(90, game.timeLeft + 10);
-        broadcastMsg = ` APOCALYPSE EVENT! +50 points to all players & +10s clock extension!`;
+        const drawTime = parseInt(this.room.settings[2]) || 80;
+        game.timeLeft = Math.min(drawTime, game.timeLeft + 10);
+        broadcastMsg = `☄️ APOCALYPSE EVENT! +50 points to all players & +10s clock extension!`;
+        effectData = { type: "apocalypse" };
         profile.stats.ultimatesUsed = (profile.stats.ultimatesUsed || 0) + 1;
         checkAchievements(profile);
         break;
+      }
 
       default:
-        break;
+        return reject("Power effect is not implemented yet");
     }
 
-    // Set cooldown
+    // Set authoritative cooldown timestamp
     const cooldownDuration = (power.cooldown || 40) * 1000;
-    state.cooldowns.set(powerId, now + cooldownDuration);
+    const cooldownEndsAt = now + cooldownDuration;
+    state.cooldowns.set(powerId, cooldownEndsAt);
+
+    // Decrement limited uses if applicable
+    if (power.maxUses !== null) {
+      const curUses = state.usesRemaining.has(powerId) ? state.usesRemaining.get(powerId) : power.maxUses;
+      state.usesRemaining.set(powerId, Math.max(0, curUses - 1));
+    }
 
     // Announce in chat
     if (broadcastMsg) {
@@ -780,7 +1009,22 @@ class EvolutionManager {
       });
     }
 
-    // Broadcast verified power used event for client UI feedback under player's card
+    // Broadcast standard authoritative power activated event
+    this.room.broadcastCustom("evolution:power_activated", {
+      playerId: player.id,
+      playerName: player.name,
+      powerId: power.id,
+      powerName: power.name,
+      powerRarity: power.rarity,
+      powerBranch: power.branch,
+      targetId: target ? target.id : null,
+      targetName: target ? target.name : null,
+      cooldownEndsAt: cooldownEndsAt,
+      usesRemaining: state.usesRemaining.get(powerId) ?? null,
+      effect: effectData
+    });
+
+    // Also broadcast legacy evolution:power_used for backwards compatibility
     this.room.broadcastCustom("evolution:power_used", {
       playerId: player.id,
       playerName: player.name,
@@ -791,7 +1035,7 @@ class EvolutionManager {
     });
 
     this.syncPlayerState(player);
-    return { success: true };
+    return { success: true, powerId, cooldownEndsAt };
   }
 
   /**
@@ -877,6 +1121,10 @@ class EvolutionManager {
         }
       }
       profile.equippedPowers = [...state.equippedPowers];
+    }
+
+    if (power.maxUses !== null && !state.usesRemaining.has(powerId)) {
+      state.usesRemaining.set(powerId, power.maxUses);
     }
 
     storage.save();

@@ -64,6 +64,7 @@ class GameEngine {
     this.gameStartedAt = 0;
     this.turnStartScores = new Map();
     this.guessOrder = 0;
+    this.lastRoundCanvas = [];
   }
 
   /**
@@ -457,7 +458,15 @@ class GameEngine {
       // Reward drawer as well
       const drawer = this.room.players.get(this.currentDrawerId);
       if (drawer) {
-        drawer.score += Math.max(25, Math.round(earnedScore * 0.4));
+        let drawerScore = Math.max(25, Math.round(earnedScore * 0.4));
+        if (mode === 6 && this.room.evolution) {
+          const dState = this.room.evolution.getPlayerState(drawer.id);
+          if (dState && dState.buffs.scoreSurge) {
+            drawerScore = Math.round(drawerScore * 1.5);
+            dState.buffs.scoreSurge = false;
+          }
+        }
+        drawer.score += drawerScore;
       }
 
       // Evolution Mode: Award XP & update streaks
@@ -509,6 +518,11 @@ class GameEngine {
   endTurn(reason) {
     this.clearTimer();
     this.state = STATES.REVEAL;
+
+    // Preserve round canvas commands for ghost_canvas
+    if (this.room.drawCommands && this.room.drawCommands.length > 0) {
+      this.lastRoundCanvas = [...this.room.drawCommands];
+    }
 
     // Team Battle update
     const mode = parseInt(this.room.settings[SETTINGS.WORDMODE]) || 0;
@@ -619,6 +633,7 @@ class GameEngine {
     this.hints = [];
     this.room.drawCommands = [];
     this.room.undoHistory = [];
+    this.lastRoundCanvas = [];
 
     for (const p of this.room.players.values()) {
       p.resetGame();

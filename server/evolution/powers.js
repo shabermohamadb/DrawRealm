@@ -1,5 +1,6 @@
 /**
  * All 38 Powers across 7 Categories in Evolution Mode
+ * Central, Authoritative Registry
  */
 
 const { BRANCHES, RARITIES } = require("./config");
@@ -14,8 +15,13 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "COMMON",
     cooldown: 40,
-    icon: "",
-    description: "Next successful guess gives +50% bonus points.",
+    levelReq: 1,
+    targetType: "self",
+    allowedPhases: [3, 4], // WORD_CHOICE, DRAWING
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "⚡",
+    description: "Next successful guess or drawing reward gives +50% bonus points.",
     isUltimate: false
   },
   point_bomb: {
@@ -24,7 +30,12 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "RARE",
     cooldown: 60,
-    icon: "",
+    levelReq: 3,
+    targetType: "all",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "💣",
     description: "Creates a 10s bonus event: next correct guess awards +100 bonus pts.",
     isUltimate: false
   },
@@ -34,8 +45,13 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "EPIC",
     cooldown: 75,
-    icon: "",
-    description: "Steal up to 40 points from the current 1st-place player (blocked by shields).",
+    levelReq: 5,
+    targetType: "opponent",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🦹",
+    description: "Steal up to 40 points from target opponent or 1st-place player (blocked by shields).",
     isUltimate: false
   },
   double_strike: {
@@ -44,7 +60,12 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "EPIC",
     cooldown: 70,
-    icon: "",
+    levelReq: 5,
+    targetType: "self",
+    allowedPhases: [3, 4], // WORD_CHOICE, DRAWING
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "⚔️",
     description: "Next two successful guesses receive +30% bonus points.",
     isUltimate: false
   },
@@ -54,7 +75,12 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "UNCOMMON",
     cooldown: 45,
-    icon: "",
+    levelReq: 2,
+    targetType: "self",
+    allowedPhases: [3, 4], // WORD_CHOICE, DRAWING
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🎯",
     description: "Very fast correct guess (first 15s) receives +100 additional points.",
     isUltimate: false
   },
@@ -68,7 +94,12 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "COMMON",
     cooldown: 40,
-    icon: "",
+    levelReq: 1,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING only (requires secret word)
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "👁️",
     description: "Reveals one random hidden letter specifically for you.",
     isUltimate: false
   },
@@ -78,7 +109,12 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "UNCOMMON",
     cooldown: 45,
-    icon: "",
+    levelReq: 2,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING only
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🔍",
     description: "Reveals the secret word's length and semantic category.",
     isUltimate: false
   },
@@ -88,8 +124,13 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "RARE",
     cooldown: 50,
-    icon: "",
-    description: "Reveals the first or last letter of the secret word.",
+    levelReq: 3,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING only
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🧩",
+    description: "Reveals the first and last letters of the secret word.",
     isUltimate: false
   },
   hint_pulse: {
@@ -98,7 +139,12 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "EPIC",
     cooldown: 60,
-    icon: "",
+    levelReq: 5,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING only
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "💡",
     description: "Generates a contextual descriptive hint in your chat log.",
     isUltimate: false
   },
@@ -108,8 +154,13 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "UNCOMMON",
     cooldown: 40,
-    icon: "",
-    description: "Protects against one wrong-guess spam cooldown penalty.",
+    levelReq: 2,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "💭",
+    description: "Protects against wrong-guess spam cooldown penalty.",
     isUltimate: false
   },
   ghost_guess: {
@@ -118,7 +169,12 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "LEGENDARY",
     cooldown: 80,
-    icon: "",
+    levelReq: 6,
+    targetType: "self",
+    allowedPhases: [4],
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "👻",
     description: "Grants tolerance: accepts a guess off by up to 2 characters as correct once.",
     isUltimate: false
   },
@@ -132,7 +188,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "COMMON",
     cooldown: 35,
-    icon: "",
+    levelReq: 1,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "drawer",
+    maxUses: null,
+    icon: "🖌️",
     description: "Drawer strokes temporarily cycle through vibrant rainbow colors.",
     isUltimate: false
   },
@@ -142,7 +203,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "UNCOMMON",
     cooldown: 45,
-    icon: "",
+    levelReq: 2,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "drawer",
+    maxUses: null,
+    icon: "📐",
     description: "Geometric assistance: automatically straightens strokes for one turn.",
     isUltimate: false
   },
@@ -152,7 +218,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "UNCOMMON",
     cooldown: 40,
-    icon: "",
+    levelReq: 2,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🎨",
     description: "Temporarily unlocks an extra palette row of bonus colors for 30s.",
     isUltimate: false
   },
@@ -162,7 +233,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "RARE",
     cooldown: 30,
-    icon: "",
+    levelReq: 3,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "drawer",
+    maxUses: null,
+    icon: "📏",
     description: "Draws a ruler-straight line from touch down to release.",
     isUltimate: false
   },
@@ -172,7 +248,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "LEGENDARY",
     cooldown: 60,
-    icon: "",
+    levelReq: 6,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "drawer",
+    maxUses: null,
+    icon: "✨",
     description: "Drawing strokes leave a faint shimmering particle trail.",
     isUltimate: false
   },
@@ -182,7 +263,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "EPIC",
     cooldown: 45,
-    icon: "",
+    levelReq: 5,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "drawer",
+    maxUses: null,
+    icon: "🧹",
     description: "Safely undos the last 3 drawing actions without clearing the board.",
     isUltimate: false
   },
@@ -196,7 +282,12 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "COMMON",
     cooldown: 45,
-    icon: "",
+    levelReq: 1,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🛡️",
     description: "Shields you from one negative event or incoming score steal.",
     isUltimate: false
   },
@@ -206,7 +297,12 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "LEGENDARY",
     cooldown: 90,
-    icon: "",
+    levelReq: 6,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: 1, // Once per match limit!
+    icon: "💖",
     description: "Protects against one score loss or negative penalty once per match.",
     isUltimate: false
   },
@@ -216,7 +312,12 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "UNCOMMON",
     cooldown: 45,
-    icon: "",
+    levelReq: 2,
+    targetType: "self",
+    allowedPhases: [4], // DRAWING
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "⏳",
     description: "Prevents a time penalty and grants 5 bonus seconds to your timer.",
     isUltimate: false
   },
@@ -226,7 +327,12 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "RARE",
     cooldown: 60,
-    icon: "",
+    levelReq: 3,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🔒",
     description: "Locks your current score from all steals and penalties for 45 seconds.",
     isUltimate: false
   },
@@ -236,7 +342,12 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "EPIC",
     cooldown: 50,
-    icon: "",
+    levelReq: 5,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "❄️",
     description: "Renders you immune to enemy modifiers (Reverse Canvas, Chaos Brush).",
     isUltimate: false
   },
@@ -250,7 +361,12 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "COMMON",
     cooldown: 50,
-    icon: "",
+    levelReq: 1,
+    targetType: "all",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🎲",
     description: "Activates one random balanced modifier for the current round.",
     isUltimate: false
   },
@@ -260,7 +376,12 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "RARE",
     cooldown: 60,
-    icon: "",
+    levelReq: 3,
+    targetType: "opponent",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🔄",
     description: "Temporarily flips canvas horizontally for 15s for unprotected players.",
     isUltimate: false
   },
@@ -270,8 +391,13 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "EPIC",
     cooldown: 50,
-    icon: "",
-    description: "Locks drawer's brush size to extra large for 8 seconds.",
+    levelReq: 5,
+    targetType: "drawer",
+    allowedPhases: [4],
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🌀",
+    description: "Locks drawer's brush size to extra large for 10 seconds.",
     isUltimate: false
   },
   time_warp: {
@@ -280,7 +406,12 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "UNCOMMON",
     cooldown: 45,
-    icon: "",
+    levelReq: 2,
+    targetType: "all",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "⏰",
     description: "Slightly adjusts the round timer by ±5 seconds (strictly bounded).",
     isUltimate: false
   },
@@ -290,7 +421,12 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "LEGENDARY",
     cooldown: 70,
-    icon: "",
+    levelReq: 6,
+    targetType: "all",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🌫️",
     description: "Shows a faint, faded preview of the previous round's drawing.",
     isUltimate: false
   },
@@ -300,7 +436,12 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "LEGENDARY",
     cooldown: 75,
-    icon: "",
+    levelReq: 6,
+    targetType: "all",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "❓",
     description: "Activates a temporary mystery rule with bonus points announced in chat.",
     isUltimate: false
   },
@@ -314,7 +455,12 @@ const POWERS = {
     branch: BRANCHES.ATTACK,
     rarity: "LEGENDARY",
     cooldown: 80,
-    icon: "",
+    levelReq: 6,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🔗",
     description: "Combines two compatible equipped powers for double effect.",
     isUltimate: false
   },
@@ -324,8 +470,13 @@ const POWERS = {
     branch: BRANCHES.CHAOS,
     rarity: "EPIC",
     cooldown: 70,
-    icon: "",
-    description: "Mutates an equipped power into a higher rarity tier with 20% faster cooldown.",
+    levelReq: 5,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🧬",
+    description: "Mutates equipped powers with instant cooldown refresh.",
     isUltimate: false
   },
   evolution_choice: {
@@ -334,7 +485,12 @@ const POWERS = {
     branch: BRANCHES.INTELLIGENCE,
     rarity: "RARE",
     cooldown: 60,
-    icon: "",
+    levelReq: 3,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "📜",
     description: "Immediately offers a draft of 3 random powers to equip.",
     isUltimate: false
   },
@@ -344,7 +500,12 @@ const POWERS = {
     branch: BRANCHES.DEFENSE,
     rarity: "RARE",
     cooldown: 50,
-    icon: "",
+    levelReq: 3,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🔃",
     description: "Swaps one selected equipped power for a newly rolled power.",
     isUltimate: false
   },
@@ -354,7 +515,12 @@ const POWERS = {
     branch: BRANCHES.CREATOR,
     rarity: "LEGENDARY",
     cooldown: 90,
-    icon: "",
+    levelReq: 6,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🎁",
     description: "Grants a high chance to immediately obtain an Epic or Legendary power.",
     isUltimate: false
   },
@@ -368,7 +534,12 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "",
+    levelReq: 7,
+    targetType: "all",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "🌌",
     description: "Replaces current round modifier with an advantageous party modifier.",
     isUltimate: true
   },
@@ -378,7 +549,12 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "",
+    levelReq: 7,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "⚡🔥",
     description: "+50% score boost and +10 bonus XP on all correct guesses this round.",
     isUltimate: true
   },
@@ -388,7 +564,12 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "",
+    levelReq: 7,
+    targetType: "self",
+    allowedPhases: [4],
+    allowedRoles: "guesser",
+    maxUses: null,
+    icon: "🔮",
     description: "Reveals 3 key letters and category without solving the word automatically.",
     isUltimate: true
   },
@@ -398,7 +579,12 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "",
+    levelReq: 7,
+    targetType: "self",
+    allowedPhases: [3, 4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "👑",
     description: "Combines and triggers all equipped normal powers with zero cooldown.",
     isUltimate: true
   },
@@ -408,8 +594,13 @@ const POWERS = {
     branch: "ultimate",
     rarity: "ULTIMATE",
     cooldown: 120,
-    icon: "",
-    description: "Global party event: +200 bonus pool, +10s clock extension, double XP for all.",
+    levelReq: 7,
+    targetType: "all",
+    allowedPhases: [4],
+    allowedRoles: "any",
+    maxUses: null,
+    icon: "☄️",
+    description: "Global party event: +50 score for all, +10s clock extension, double XP for all.",
     isUltimate: true
   }
 };
@@ -434,6 +625,9 @@ function getUltimatePowers() {
 function rollDraftChoices(level, preferredBranch = null, currentPowerIds = []) {
   const isUltimateDraft = level >= 7 && Math.random() < 0.4;
   let pool = isUltimateDraft ? getUltimatePowers() : getNormalPowers();
+
+  // Filter by level requirement
+  pool = pool.filter(p => (p.levelReq || 1) <= level);
 
   // Exclude already equipped powers
   pool = pool.filter(p => !currentPowerIds.includes(p.id));

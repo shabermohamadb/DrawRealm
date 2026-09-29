@@ -2,69 +2,89 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>DrawRealm Anime Avatar System Showcase</title>
+  <title>DrawRealm 28 Anime Character Roster Showcase</title>
   <link rel="stylesheet" href="../css/style.css">
   <style>
     body {
-      background: #124da5 url(../img/background.png) repeat;
-      background-size: 350px;
+      background: #0b1130 url(../img/drawrealm_fantasy_bg.webp) no-repeat center center fixed;
+      background-size: cover;
       font-family: 'Nunito', sans-serif;
       color: #fff;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 30px;
+      padding: 30px 20px;
       margin: 0;
+      min-height: 100vh;
     }
     h1 {
       font-size: 28px;
-      margin-bottom: 5px;
-      text-shadow: 2px 2px 0 rgba(0,0,0,0.4);
+      margin-bottom: 6px;
+      text-shadow: 0 0 16px rgba(99, 102, 241, 0.6), 0 2px 4px rgba(0,0,0,0.8);
+      letter-spacing: 0.5px;
     }
     p.subtitle {
       color: #cbd5e1;
       margin-bottom: 25px;
       font-size: 15px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.7);
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
-      max-width: 1000px;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 16px;
+      max-width: 1380px;
       width: 100%;
     }
+    @media (max-width: 1200px) {
+      .grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
     .card {
-      background: rgba(12, 44, 150, 0.85);
-      border: 1px solid rgba(86, 178, 253, 0.4);
-      border-radius: 8px;
-      padding: 16px;
+      background: rgba(13, 20, 54, 0.88);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      border-radius: 10px;
+      padding: 14px 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      backdrop-filter: blur(8px);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: #38bdf8;
     }
     .avatar-wrapper {
       width: 96px;
       height: 96px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       position: relative;
     }
     .name {
       font-weight: 800;
-      font-size: 15px;
-      color: #ffdfb4;
+      font-size: 14px;
+      color: #f8fafc;
       margin-bottom: 4px;
+      text-align: center;
+      white-space: nowrap;
     }
     .tag {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      background: rgba(0,0,0,0.3);
-      padding: 2px 8px;
+      background: rgba(99, 102, 241, 0.25);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      padding: 2px 6px;
       border-radius: 4px;
       color: #93c5fd;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
+      text-align: center;
+      white-space: nowrap;
     }
     .tuple {
       font-size: 11px;
@@ -74,8 +94,8 @@
   </style>
 </head>
 <body>
-  <h1>DRAWREALM ORIGINAL ANIME AVATAR SYSTEM</h1>
-  <p class="subtitle">100% Vector-crisp 2D Anime Archetypes &bull; Zero Emojis &bull; Zero Copyrighted Assets &bull; 10-Column Atlas Architecture</p>
+  <h1>DRAWREALM ORIGINAL ANIME AVATAR ROSTER</h1>
+  <p class="subtitle">28 Bespoke Character Hairstyles &bull; Natural Skull Volume &bull; 3-Tier Layered Shading &bull; 10-Column Atlas</p>
 
   <div class="grid" id="avatarGrid"></div>
 
@@ -92,15 +112,15 @@
 
       const c = document.createElement("div");
       c.className = "color";
-      c.style.backgroundPosition = `${-(col % 10) * 100}% ${-Math.floor(col / 10) * 100}%`;
+      c.style.backgroundPosition = `${-(col % 10) * 100}% ${ -Math.floor(col / 10) * 100}%`;
 
       const e = document.createElement("div");
       e.className = "eyes";
-      e.style.backgroundPosition = `${-(eyes % 10) * 100}% ${-Math.floor(eyes / 10) * 100}%`;
+      e.style.backgroundPosition = `${-(eyes % 10) * 100}% ${ -Math.floor(eyes / 10) * 100}%`;
 
       const m = document.createElement("div");
       m.className = "mouth";
-      m.style.backgroundPosition = `${-(mouth % 10) * 100}% ${-Math.floor(mouth / 10) * 100}%`;
+      m.style.backgroundPosition = `${-(mouth % 10) * 100}% ${ -Math.floor(mouth / 10) * 100}%`;
 
       wrap.appendChild(c);
       wrap.appendChild(e);
@@ -109,29 +129,41 @@
       if (special >= 0) {
         const s = document.createElement("div");
         s.className = "special";
-        s.style.backgroundPosition = `${-(special % 10) * 100}% ${-Math.floor(special / 10) * 100}%`;
+        s.style.backgroundPosition = `${-(special % 10) * 100}% ${ -Math.floor(special / 10) * 100}%`;
         wrap.appendChild(s);
       }
       return wrap;
     }
 
     const SHOWCASE = [
-      { name: "Kaito", tag: "Shadow Rogue", tuple: [0, 0, 0, -1] },
-      { name: "Ren", tag: "Cyber Samurai", tuple: [1, 5, 0, 6] },
-      { name: "Daiki", tag: "Crimson Blaze", tuple: [2, 1, 1, 1] },
-      { name: "Shin", tag: "Frost Sorcerer", tuple: [3, 2, 7, 3] },
-      { name: "Hayate", tag: "Electric Prodigy", tuple: [4, 3, 3, -1] },
-      { name: "Kohaku", tag: "Star Vocalist", tuple: [5, 4, 1, 10] },
-      { name: "Minato", tag: "Digital Nomad", tuple: [6, 5, 0, 0] },
-      { name: "Tsubasa", tag: "Desert Wanderer", tuple: [7, 4, 1, 13] },
-      { name: "Ryuto", tag: "Silent Striker", tuple: [8, 3, 7, 4] },
-      { name: "Sakura", tag: "Sakura Idol", tuple: [9, 1, 2, 2] },
-      { name: "Kage", tag: "Neon Phantom", tuple: [11, 3, 0, 17] },
-      { name: "Aoi", tag: "Ocean Mist", tuple: [14, 0, 1, 11] },
-      { name: "Miku", tag: "Midnight Ace", tuple: [15, 6, 8, 19] },
-      { name: "Riku", tag: "Emerald Hunter", tuple: [16, 2, 0, 9] },
-      { name: "Valeria", tag: "Silver Valkyrie", tuple: [21, 0, 7, 15] },
-      { name: "Cordelia", tag: "Gothic Aristocrat", tuple: [23, 1, 0, 5] }
+      { id: 0, name: "Shadow Rogue", tag: "Messy Shonen", cloth: "Tech Hoodie", tuple: [0, 0, 0, 0] },
+      { id: 1, name: "Cyber Samurai", tag: "Curtain Bob", cloth: "Tactical Jacket", tuple: [1, 1, 1, 3] },
+      { id: 2, name: "Crimson Blaze", tag: "Spiky Shonen", cloth: "Bomber", tuple: [2, 2, 2, 6] },
+      { id: 3, name: "Frost Sorcerer", tag: "Side Sweep Medium", cloth: "Turtleneck", tuple: [3, 3, 3, 9] },
+      { id: 4, name: "Electric Prodigy", tag: "Runner Textured", cloth: "Track Jacket", tuple: [4, 4, 4, 12] },
+      { id: 5, name: "Star Vocalist", tag: "Wavy Layers", cloth: "Blazer Tie", tuple: [5, 5, 5, 15] },
+      { id: 6, name: "Digital Nomad", tag: "Cyber Asym", cloth: "Tech Hoodie", tuple: [6, 6, 6, 18] },
+      { id: 7, name: "Desert Wanderer", tag: "Wolf Cut", cloth: "Cozy Scarf", tuple: [7, 7, 7, 1] },
+      { id: 8, name: "Silent Striker", tag: "Slicked Undercut", cloth: "Tactical Jacket", tuple: [8, 8, 8, 4] },
+      { id: 9, name: "Sakura Idol", tag: "Twin Tails", cloth: "Tech Hoodie", tuple: [9, 0, 9, 7] },
+      { id: 10, name: "Arcane Scholar", tag: "Scholar Part", cloth: "Turtleneck", tuple: [10, 1, 0, 10] },
+      { id: 11, name: "Neon Phantom", tag: "Wild Wolf", cloth: "Street Vest", tuple: [11, 2, 1, 13] },
+      { id: 12, name: "Iron Vanguard", tag: "Military Crop", cloth: "Tactical Jacket", tuple: [12, 3, 2, 16] },
+      { id: 13, name: "Solar Knight", tag: "Curtain Flow", cloth: "Blazer Tie", tuple: [13, 4, 3, 19] },
+      { id: 14, name: "Ocean Mist", tag: "Cascading Waves", cloth: "Casual Crew", tuple: [14, 5, 4, 2] },
+      { id: 15, name: "Midnight Ace", tag: "High Ponytail", cloth: "Bomber", tuple: [15, 6, 5, 5] },
+      { id: 16, name: "Emerald Hunter", tag: "Windblown Spikes", cloth: "Tactical Jacket", tuple: [16, 7, 6, 8] },
+      { id: 17, name: "Golden Champion", tag: "Curly Crop", cloth: "Track Jacket", tuple: [17, 8, 7, 11] },
+      { id: 18, name: "Twilight Reaper", tag: "Hime Straight", cloth: "Tactical Jacket", tuple: [18, 0, 8, 14] },
+      { id: 19, name: "Ruby Duelist", tag: "Feathered Pixie", cloth: "Tech Hoodie", tuple: [19, 1, 9, 17] },
+      { id: 20, name: "Verdant Druid", tag: "Braided Flow", cloth: "Cozy Scarf", tuple: [20, 2, 0, 0] },
+      { id: 21, name: "Silver Valkyrie", tag: "Silver Hime", cloth: "Blazer Tie", tuple: [21, 3, 1, 3] },
+      { id: 22, name: "Cyberpunk Rebel", tag: "Undercut Sweep", cloth: "Tactical Jacket", tuple: [22, 4, 2, 6] },
+      { id: 23, name: "Gothic Aristocrat", tag: "Drill Curls", cloth: "Turtleneck", tuple: [23, 5, 3, 9] },
+      { id: 24, name: "Caramel Maverick", tag: "Pompadour Quiff", cloth: "Bomber", tuple: [24, 6, 4, 12] },
+      { id: 25, name: "Crimson Lotus", tag: "Twin Buns", cloth: "Tactical Jacket", tuple: [25, 7, 5, 15] },
+      { id: 26, name: "Stellar Oracle", tag: "Astral Waves", cloth: "Tech Hoodie", tuple: [26, 8, 6, 18] },
+      { id: 27, name: "Bronze Gladiator", tag: "Caesar Crop", cloth: "Street Vest", tuple: [27, 0, 7, 1] },
     ];
 
     const container = document.getElementById("avatarGrid");
@@ -145,7 +177,7 @@
 
       const nameEl = document.createElement("div");
       nameEl.className = "name";
-      nameEl.textContent = item.name;
+      nameEl.textContent = `#${item.id} ${item.name}`;
 
       const tagEl = document.createElement("div");
       tagEl.className = "tag";

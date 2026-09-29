@@ -1,0 +1,108 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+const io = require('socket.io-client');
+
+const ARTIFACT_DIR = "/home/shaber/.gemini/antigravity/brain/b014560c-ddf5-44ac-a525-5d2533dae9fa";
+
+async function main() {
+  const CDP_PORT = 9295;
+  const chrome = spawn('chromium', [
+    '--headless=new',
+    '--no-sandbox',
+    '--disable-gpu',
+    `--remote-debugging-port=${CDP_PORT}`
+  ]);
+
+  await new Promise(r => setTimeout(r, 1200));
+
+  function putTab(url) {
+    return new Promise((res, rej) => {
+      const u = new URL(`http://127.0.0.1:${CDP_PORT}/json/new?${url}`);
+      const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: 'PUT' }, r => {
+        let d = ''; r.on('data', c => d += c); r.on('end', () => res(JSON.parse(d)));
+      });
+      req.on('error', rej); req.end();
+    });
+  }
+
+  const tab = await putTab('http://localhost:3001/');
+  const ws = new WebSocket(tab.webSocketDebuggerUrl);
+  await new Promise(r => ws.onopen = r);
+
+  let id = 1;
+  const cbs = new Map();
+  ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && cbs.has(m.id)) { cbs.get(m.id)(m.result); cbs.delete(m.id); } };
+  function send(method, params = {}) { return new Promise(r => { const mid = id++; cbs.set(mid, r); ws.send(JSON.stringify({ id: mid, method, params })); }); }
+  async function evalExpr(expr) { const res = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); return res && res.result ? res.result.value : undefined; }
+
+  await send('Page.enable');
+  await send('Runtime.enable');
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+
+  // Enter room as host with anime avatar #0 (Shadow Rogue)
+  await evalExpr("document.querySelector('#home .container-name-lang input').value = 'CaptainKaito'");
+  await evalExpr("document.querySelector('#home .panel .button-create').click()");
+
+  // Wait for #game to be visible and invite code to be ready
+  let roomCode = "";
+  for (let i = 0; i < 30; i++) {
+    const inviteVal = await evalExpr("document.getElementById('input-invite') ? document.getElementById('input-invite').value : ''");
+    if (inviteVal && inviteVal.includes('?')) {
+      roomCode = inviteVal.split('?')[1].trim();
+      break;
+    }
+    const codeDisp = await evalExpr("document.getElementById('lobby-code-display') ? document.getElementById('lobby-code-display').textContent.trim() : ''");
+    if (codeDisp && codeDisp !== '--------') {
+      roomCode = codeDisp;
+      break;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  console.log("Room code resolved:", roomCode);
+
+  if (roomCode) {
+    // Connect Player 2 with #1 Cyber Samurai
+    const p2 = io('http://localhost:3001', { transports: ["websocket"], path: "/socket.io/" });
+    await new Promise(r => {
+      p2.on('connect', () => p2.emit('login', { join: roomCode, name: 'Ren_Samurai', lang: 'en', avatar: [1, 5, 0, 6] }));
+      p2.on('data', pkt => { if (pkt && pkt.id === 10) r(); });
+    });
+
+    // Connect Player 3 with #9 Sakura Idol
+    const p3 = io('http://localhost:3001', { transports: ["websocket"], path: "/socket.io/" });
+    await new Promise(r => {
+      p3.on('connect', () => p3.emit('login', { join: roomCode, name: 'Sakura_Chan', lang: 'en', avatar: [9, 1, 2, 2] }));
+      p3.on('data', pkt => { if (pkt && pkt.id === 10) r(); });
+    });
+
+    await new Promise(r => setTimeout(r, 1200));
+
+    // Capture Lobby
+    const shotLobby = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'anime_avatar_lobby_players.png'), Buffer.from(shotLobby.data, 'base64'));
+    console.log("✓ Captured anime_avatar_lobby_players.png");
+
+    // Start match
+    await evalExpr("document.getElementById('button-start-game').click()");
+    await new Promise(r => setTimeout(r, 3500));
+
+    // Select word if choice shown
+    await evalExpr("if (document.querySelector('#game-canvas .overlay-content .words .word')) document.querySelector('#game-canvas .overlay-content .words .word').click();");
+    await new Promise(r => setTimeout(r, 2000));
+
+    const shotGame = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'anime_avatar_active_gameplay.png'), Buffer.from(shotGame.data, 'base64'));
+    console.log("✓ Captured anime_avatar_active_gameplay.png");
+
+    p2.disconnect();
+    p3.disconnect();
+  }
+
+  ws.close();
+  chrome.kill();
+  console.log("Done!");
+}
+
+main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });

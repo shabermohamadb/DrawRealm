@@ -24,300 +24,521 @@ def bezier_curve(p0, p1, p2, p3, num_pts=20):
         pts.append((int(x), int(y)))
     return pts
 
-def make_lock(root_l, c_l1, c_l2, tip, c_r1, c_r2, root_r, num=12):
-    left_edge = bezier_curve(root_l, c_l1, c_l2, tip, num)
-    right_edge = bezier_curve(tip, c_r1, c_r2, root_r, num)
-    return left_edge + right_edge[1:]
-
-def draw_forehead_shadow(im, shadow_pts, skin_shadow):
-    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    sd = ImageDraw.Draw(sh)
-    col = (max(0, skin_shadow[0]-45), max(0, skin_shadow[1]-45), max(0, skin_shadow[2]-45), 125)
-    sd.polygon(shadow_pts, fill=col)
-    sh = sh.filter(ImageFilter.GaussianBlur(radius=6))
-    im.alpha_composite(sh)
-
-def draw_anisotropic_sheen(im, arc_pts, hi_col, width=6, blur_rad=4):
-    halo = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    hd = ImageDraw.Draw(halo)
-    for i in range(len(arc_pts) - 1):
-        hd.line([arc_pts[i], arc_pts[i+1]], fill=hi_col, width=width)
-    halo = halo.filter(ImageFilter.GaussianBlur(radius=blur_rad))
-    im.alpha_composite(halo)
-
 # ==============================================================================
-# 1. COLOR ATLAS — 28 UNIQUE ANIME ARCHETYPES (INDIVIDUAL SILHOUETTES & DESIGNS)
+# 1. COLOR ATLAS — 28 BASE ANIME ARCHETYPES
 # ==============================================================================
 
 ARCHETYPES = [
-    # 0: Shadow Rogue — Messy Layered Shonen
+    # 0: Shadow Rogue
     {
-        "id": 0, "name": "Shadow Rogue",
+        "name": "Shadow Rogue",
         "skin": ((252, 230, 215), (222, 188, 168)),
-        "hair_base": (36, 36, 46), "hair_dark": (18, 18, 26), "hair_hi": (115, 130, 165),
-        "style": "messy_shonen", "face_type": "sharp",
+        "hair_base": (28, 28, 36), "hair_dark": (14, 14, 20), "hair_hi": (95, 105, 130),
+        "style": "messy_shonen",
         "clothing_type": "tech_hoodie",
         "clothing_base": (24, 26, 32), "clothing_accent": (249, 115, 22),
     },
-    # 1: Cyber Samurai — Curtain Bangs Bob
+    # 1: Cyber Samurai
     {
-        "id": 1, "name": "Cyber Samurai",
-        "skin": ((254, 238, 228), (226, 196, 180)),
-        "hair_base": (236, 242, 250), "hair_dark": (165, 180, 202), "hair_hi": (255, 255, 255),
-        "style": "curtain_bob", "face_type": "slender",
+        "name": "Cyber Samurai",
+        "skin": ((254, 238, 228), (228, 198, 182)),
+        "hair_base": (235, 240, 248), "hair_dark": (160, 175, 195), "hair_hi": (255, 255, 255),
+        "style": "curtain_bangs",
         "clothing_type": "tactical_jacket",
         "clothing_base": (20, 24, 34), "clothing_accent": (6, 182, 212),
     },
-    # 2: Crimson Blaze — Spiky Shonen Short Hair
+    # 2: Crimson Blaze
     {
-        "id": 2, "name": "Crimson Blaze",
-        "skin": ((250, 224, 205), (220, 184, 162)),
-        "hair_base": (220, 38, 38), "hair_dark": (145, 18, 18), "hair_hi": (254, 140, 140),
-        "style": "spiky_shonen", "face_type": "sharp",
+        "name": "Crimson Blaze",
+        "skin": ((250, 224, 205), (222, 186, 164)),
+        "hair_base": (220, 38, 38), "hair_dark": (145, 18, 18), "hair_hi": (252, 120, 120),
+        "style": "spiky_shonen",
         "clothing_type": "bomber",
         "clothing_base": (30, 30, 35), "clothing_accent": (220, 38, 38),
     },
-    # 3: Frost Sorcerer — Side-Swept Medium Layers
+    # 3: Frost Sorcerer
     {
-        "id": 3, "name": "Frost Sorcerer",
-        "skin": ((253, 238, 228), (226, 198, 182)),
-        "hair_base": (195, 220, 245), "hair_dark": (130, 160, 195), "hair_hi": (250, 252, 255),
-        "style": "side_sweep_medium", "face_type": "slender",
+        "name": "Frost Sorcerer",
+        "skin": ((253, 236, 225), (226, 196, 180)),
+        "hair_base": (210, 225, 245), "hair_dark": (140, 165, 195), "hair_hi": (250, 252, 255),
+        "style": "side_part_fringe",
         "clothing_type": "turtleneck",
         "clothing_base": (28, 38, 58), "clothing_accent": (96, 165, 250),
     },
-    # 4: Electric Prodigy — Runner Textured w/ Headband
+    # 4: Electric Prodigy
     {
-        "id": 4, "name": "Electric Prodigy",
-        "skin": ((248, 220, 196), (218, 182, 154)),
+        "name": "Electric Prodigy",
+        "skin": ((248, 222, 198), (220, 184, 156)),
         "hair_base": (250, 204, 21), "hair_dark": (185, 130, 10), "hair_hi": (254, 245, 170),
-        "style": "runner_textured", "face_type": "energetic",
+        "style": "runner_spikes",
         "clothing_type": "track_jacket",
         "clothing_base": (24, 24, 28), "clothing_accent": (250, 204, 21),
     },
-    # 5: Star Vocalist — Wavy Shoulder Layers
+    # 5: Star Vocalist
     {
-        "id": 5, "name": "Star Vocalist",
-        "skin": ((253, 232, 220), (226, 194, 174)),
-        "hair_base": (192, 132, 252), "hair_dark": (125, 65, 190), "hair_hi": (238, 210, 255),
-        "style": "wavy_layers", "face_type": "soft",
+        "name": "Star Vocalist",
+        "skin": ((252, 232, 218), (226, 194, 174)),
+        "hair_base": (192, 132, 252), "hair_dark": (130, 70, 195), "hair_hi": (235, 205, 255),
+        "style": "wavy_layers",
         "clothing_type": "blazer_tie",
         "clothing_base": (30, 25, 45), "clothing_accent": (192, 132, 252),
     },
-    # 6: Digital Nomad — Asymmetrical Cyber Bob
+    # 6: Digital Nomad
     {
-        "id": 6, "name": "Digital Nomad",
+        "name": "Digital Nomad",
         "skin": ((246, 220, 196), (218, 182, 154)),
-        "hair_base": (20, 184, 166), "hair_dark": (13, 115, 104), "hair_hi": (115, 240, 225),
-        "style": "cyber_asym", "face_type": "slender",
+        "hair_base": (20, 184, 166), "hair_dark": (13, 115, 104), "hair_hi": (94, 234, 212),
+        "style": "cyber_asym",
         "clothing_type": "tech_hoodie",
         "clothing_base": (17, 24, 39), "clothing_accent": (20, 184, 166),
     },
-    # 7: Desert Wanderer — Shaggy Wolf Cut Mullet
+    # 7: Desert Wanderer
     {
-        "id": 7, "name": "Desert Wanderer",
+        "name": "Desert Wanderer",
         "skin": ((235, 196, 166), (205, 160, 128)),
-        "hair_base": (156, 75, 20), "hair_dark": (95, 40, 10), "hair_hi": (225, 135, 35),
-        "style": "wolf_cut", "face_type": "sharp",
+        "hair_base": (146, 64, 14), "hair_dark": (90, 35, 8), "hair_hi": (217, 119, 6),
+        "style": "wolf_cut",
         "clothing_type": "cozy_scarf",
         "clothing_base": (180, 83, 9), "clothing_accent": (254, 215, 170),
     },
-    # 8: Silent Striker — Slicked-Back Undercut
+    # 8: Silent Striker
     {
-        "id": 8, "name": "Silent Striker",
+        "name": "Silent Striker",
         "skin": ((240, 208, 180), (212, 172, 142)),
-        "hair_base": (38, 34, 36), "hair_dark": (18, 16, 18), "hair_hi": (115, 110, 120),
-        "style": "slicked_undercut", "face_type": "angular",
+        "hair_base": (35, 30, 32), "hair_dark": (18, 15, 16), "hair_hi": (80, 75, 80),
+        "style": "short_undercut",
         "clothing_type": "tactical_jacket",
         "clothing_base": (35, 38, 45), "clothing_accent": (148, 163, 184),
     },
-    # 9: Sakura Idol — High Twin Tails w/ Ribbons
+    # 9: Sakura Idol
     {
-        "id": 9, "name": "Sakura Idol",
-        "skin": ((254, 236, 225), (230, 200, 184)),
+        "name": "Sakura Idol",
+        "skin": ((254, 236, 224), (230, 200, 182)),
         "hair_base": (251, 113, 133), "hair_dark": (190, 45, 75), "hair_hi": (254, 205, 215),
-        "style": "twin_tails", "face_type": "soft",
+        "style": "twin_tails",
         "clothing_type": "tech_hoodie",
         "clothing_base": (255, 245, 248), "clothing_accent": (244, 63, 94),
     },
-    # 10: Arcane Scholar — 7:3 Side-Parted Medium
+    # 10: Arcane Scholar
     {
-        "id": 10, "name": "Arcane Scholar",
+        "name": "Arcane Scholar",
         "skin": ((250, 228, 212), (224, 192, 172)),
-        "hair_base": (32, 68, 155), "hair_dark": (16, 35, 90), "hair_hi": (110, 175, 255),
-        "style": "scholar_part", "face_type": "slender",
+        "hair_base": (30, 64, 145), "hair_dark": (15, 32, 85), "hair_hi": (96, 165, 250),
+        "style": "side_part_fringe",
         "clothing_type": "turtleneck",
         "clothing_base": (22, 28, 45), "clothing_accent": (147, 197, 253),
     },
-    # 11: Neon Phantom — Wild Spiky Wolf Cut
+    # 11: Neon Phantom
     {
-        "id": 11, "name": "Neon Phantom",
+        "name": "Neon Phantom",
         "skin": ((246, 222, 204), (220, 186, 164)),
-        "hair_base": (175, 80, 250), "hair_dark": (110, 30, 170), "hair_hi": (235, 190, 255),
-        "style": "wild_wolf", "face_type": "sharp",
+        "hair_base": (168, 85, 247), "hair_dark": (107, 33, 168), "hair_hi": (233, 213, 255),
+        "style": "wolf_cut",
         "clothing_type": "street_vest",
         "clothing_base": (20, 15, 30), "clothing_accent": (168, 85, 247),
     },
-    # 12: Iron Vanguard — Textured Military Crop
+    # 12: Iron Vanguard
     {
-        "id": 12, "name": "Iron Vanguard",
+        "name": "Iron Vanguard",
         "skin": ((234, 198, 170), (204, 162, 130)),
-        "hair_base": (105, 122, 145), "hair_dark": (55, 68, 88), "hair_hi": (185, 200, 220),
-        "style": "military_crop", "face_type": "angular",
+        "hair_base": (100, 116, 139), "hair_dark": (51, 65, 85), "hair_hi": (180, 195, 215),
+        "style": "short_undercut",
         "clothing_type": "tactical_jacket",
         "clothing_base": (30, 41, 59), "clothing_accent": (234, 179, 8),
     },
-    # 13: Solar Knight — Curtain Bangs Flow
+    # 13: Solar Knight
     {
-        "id": 13, "name": "Solar Knight",
+        "name": "Solar Knight",
         "skin": ((250, 226, 208), (226, 190, 168)),
         "hair_base": (245, 195, 75), "hair_dark": (180, 130, 30), "hair_hi": (255, 245, 190),
-        "style": "curtain_flow", "face_type": "slender",
+        "style": "curtain_bangs",
         "clothing_type": "blazer_tie",
         "clothing_base": (248, 250, 252), "clothing_accent": (218, 165, 32),
     },
-    # 14: Ocean Mist — Long Cascading Waves
+    # 14: Ocean Mist
     {
-        "id": 14, "name": "Ocean Mist",
+        "name": "Ocean Mist",
         "skin": ((254, 238, 226), (228, 200, 184)),
-        "hair_base": (45, 180, 240), "hair_dark": (14, 110, 160), "hair_hi": (180, 235, 255),
-        "style": "cascading_waves", "face_type": "soft",
+        "hair_base": (56, 189, 248), "hair_dark": (14, 116, 144), "hair_hi": (186, 230, 253),
+        "style": "flowing_waves",
         "clothing_type": "casual_crew",
         "clothing_base": (30, 45, 65), "clothing_accent": (56, 189, 248),
     },
-    # 15: Midnight Ace — High Ponytail w/ Draping Arch
+    # 15: Midnight Ace
     {
-        "id": 15, "name": "Midnight Ace",
+        "name": "Midnight Ace",
         "skin": ((248, 224, 206), (222, 188, 166)),
-        "hair_base": (25, 28, 48), "hair_dark": (12, 14, 26), "hair_hi": (100, 115, 160),
-        "style": "high_ponytail", "face_type": "sharp",
+        "hair_base": (20, 24, 40), "hair_dark": (10, 12, 22), "hair_hi": (70, 85, 125),
+        "style": "high_ponytail",
         "clothing_type": "bomber",
         "clothing_base": (24, 24, 27), "clothing_accent": (203, 213, 225),
     },
-    # 16: Emerald Hunter — Windblown Spiky Wild Cut
+    # 16: Emerald Hunter
     {
-        "id": 16, "name": "Emerald Hunter",
+        "name": "Emerald Hunter",
         "skin": ((244, 216, 192), (216, 178, 150)),
-        "hair_base": (18, 180, 120), "hair_dark": (6, 115, 75), "hair_hi": (120, 235, 185),
-        "style": "windblown_spikes", "face_type": "sharp",
+        "hair_base": (16, 185, 129), "hair_dark": (5, 120, 80), "hair_hi": (110, 231, 183),
+        "style": "messy_shonen",
         "clothing_type": "tactical_jacket",
         "clothing_base": (25, 45, 35), "clothing_accent": (16, 185, 129),
     },
-    # 17: Golden Champion — Curly / Wavy Voluminous Crop
+    # 17: Golden Champion
     {
-        "id": 17, "name": "Golden Champion",
+        "name": "Golden Champion",
         "skin": ((248, 220, 195), (220, 182, 152)),
-        "hair_base": (235, 175, 15), "hair_dark": (165, 95, 10), "hair_hi": (254, 225, 80),
-        "style": "curly_crop", "face_type": "energetic",
+        "hair_base": (234, 179, 8), "hair_dark": (161, 98, 7), "hair_hi": (253, 224, 71),
+        "style": "curly_crop",
         "clothing_type": "track_jacket",
         "clothing_base": (30, 35, 45), "clothing_accent": (234, 179, 8),
     },
-    # 18: Twilight Reaper — Long Straight Hime Cut
+    # 18: Twilight Reaper
     {
-        "id": 18, "name": "Twilight Reaper",
+        "name": "Twilight Reaper",
         "skin": ((252, 234, 222), (226, 196, 178)),
-        "hair_base": (85, 25, 130), "hair_dark": (40, 10, 70), "hair_hi": (165, 80, 245),
-        "style": "hime_straight", "face_type": "slender",
+        "hair_base": (88, 28, 135), "hair_dark": (45, 10, 75), "hair_hi": (168, 85, 247),
+        "style": "flowing_waves",
         "clothing_type": "tactical_jacket",
         "clothing_base": (18, 15, 25), "clothing_accent": (147, 51, 234),
     },
-    # 19: Ruby Duelist — Feathered Pixie Cut
+    # 19: Ruby Duelist
     {
-        "id": 19, "name": "Ruby Duelist",
+        "name": "Ruby Duelist",
         "skin": ((246, 218, 196), (218, 180, 154)),
-        "hair_base": (225, 30, 75), "hair_dark": (140, 15, 45), "hair_hi": (252, 125, 145),
-        "style": "feathered_pixie", "face_type": "sharp",
+        "hair_base": (225, 29, 72), "hair_dark": (140, 12, 40), "hair_hi": (251, 113, 133),
+        "style": "runner_spikes",
         "clothing_type": "tech_hoodie",
         "clothing_base": (24, 24, 27), "clothing_accent": (225, 29, 72),
     },
-    # 20: Verdant Druid — Braided Accent Flow
+    # 20: Verdant Druid
     {
-        "id": 20, "name": "Verdant Druid",
+        "name": "Verdant Druid",
         "skin": ((250, 226, 210), (224, 192, 172)),
-        "hair_base": (50, 205, 148), "hair_dark": (15, 135, 90), "hair_hi": (165, 242, 205),
-        "style": "braided_flow", "face_type": "soft",
+        "hair_base": (52, 211, 153), "hair_dark": (16, 140, 95), "hair_hi": (167, 243, 208),
+        "style": "wavy_layers",
         "clothing_type": "cozy_scarf",
         "clothing_base": (6, 78, 59), "clothing_accent": (52, 211, 153),
     },
-    # 21: Silver Valkyrie — Pristine Hime Cut
+    # 21: Silver Valkyrie
     {
-        "id": 21, "name": "Silver Valkyrie",
+        "name": "Silver Valkyrie",
         "skin": ((254, 238, 230), (230, 202, 188)),
-        "hair_base": (228, 234, 242), "hair_dark": (150, 165, 188), "hair_hi": (255, 255, 255),
-        "style": "silver_hime", "face_type": "slender",
+        "hair_base": (226, 232, 240), "hair_dark": (148, 163, 184), "hair_hi": (255, 255, 255),
+        "style": "hime_cut",
         "clothing_type": "blazer_tie",
         "clothing_base": (15, 23, 42), "clothing_accent": (226, 232, 240),
     },
-    # 22: Cyberpunk Rebel — Undercut Side-Sweep
+    # 22: Cyberpunk Rebel
     {
-        "id": 22, "name": "Cyberpunk Rebel",
+        "name": "Cyberpunk Rebel",
         "skin": ((242, 212, 186), (214, 174, 144)),
-        "hair_base": (135, 210, 25), "hair_dark": (75, 125, 15), "hair_hi": (195, 245, 110),
-        "style": "undercut_sweep", "face_type": "sharp",
+        "hair_base": (132, 204, 22), "hair_dark": (77, 124, 15), "hair_hi": (190, 242, 100),
+        "style": "cyber_asym",
         "clothing_type": "tactical_jacket",
         "clothing_base": (17, 24, 39), "clothing_accent": (234, 179, 8),
     },
-    # 23: Gothic Aristocrat — Twin Drill Spiral Curls
+    # 23: Gothic Aristocrat
     {
-        "id": 23, "name": "Gothic Aristocrat",
+        "name": "Gothic Aristocrat",
         "skin": ((254, 240, 232), (230, 204, 190)),
-        "hair_base": (26, 24, 30), "hair_dark": (12, 10, 14), "hair_hi": (85, 80, 95),
-        "style": "drill_curls", "face_type": "soft",
+        "hair_base": (24, 24, 28), "hair_dark": (10, 10, 12), "hair_hi": (65, 65, 75),
+        "style": "drill_curls",
         "clothing_type": "turtleneck",
         "clothing_base": (15, 15, 20), "clothing_accent": (159, 18, 57),
     },
-    # 24: Caramel Maverick — Modern Pompadour Quiff
+    # 24: Caramel Maverick
     {
-        "id": 24, "name": "Caramel Maverick",
+        "name": "Caramel Maverick",
         "skin": ((220, 176, 146), (190, 140, 110)),
-        "hair_base": (185, 88, 12), "hair_dark": (118, 50, 8), "hair_hi": (248, 165, 18),
-        "style": "pompadour_quiff", "face_type": "angular",
+        "hair_base": (180, 83, 9), "hair_dark": (115, 48, 6), "hair_hi": (245, 158, 11),
+        "style": "side_part_fringe",
         "clothing_type": "bomber",
         "clothing_base": (45, 30, 20), "clothing_accent": (245, 158, 11),
     },
-    # 25: Crimson Lotus — Twin Odango Buns
+    # 25: Crimson Lotus
     {
-        "id": 25, "name": "Crimson Lotus",
+        "name": "Crimson Lotus",
         "skin": ((252, 230, 216), (226, 194, 174)),
-        "hair_base": (245, 65, 96), "hair_dark": (180, 22, 58), "hair_hi": (254, 168, 180),
-        "style": "twin_buns", "face_type": "soft",
+        "hair_base": (244, 63, 94), "hair_dark": (180, 20, 55), "hair_hi": (253, 164, 175),
+        "style": "twin_tails",
         "clothing_type": "tactical_jacket",
         "clothing_base": (24, 24, 28), "clothing_accent": (244, 63, 94),
     },
-    # 26: Stellar Oracle — Floating Astral Waves
+    # 26: Stellar Oracle
     {
-        "id": 26, "name": "Stellar Oracle",
+        "name": "Stellar Oracle",
         "skin": ((252, 232, 218), (226, 196, 176)),
-        "hair_base": (35, 62, 145), "hair_dark": (18, 28, 75), "hair_hi": (115, 185, 255),
-        "style": "astral_waves", "face_type": "slender",
+        "hair_base": (30, 58, 138), "hair_dark": (15, 25, 70), "hair_hi": (96, 165, 250),
+        "style": "flowing_waves",
         "clothing_type": "tech_hoodie",
         "clothing_base": (15, 23, 42), "clothing_accent": (96, 165, 250),
     },
-    # 27: Bronze Gladiator — Caesar Crop Fade
+    # 27: Bronze Gladiator
     {
-        "id": 27, "name": "Bronze Gladiator",
+        "name": "Bronze Gladiator",
         "skin": ((195, 145, 115), (165, 115, 85)),
-        "hair_base": (32, 26, 24), "hair_dark": (16, 12, 10), "hair_hi": (80, 70, 65),
-        "style": "caesar_crop", "face_type": "angular",
+        "hair_base": (30, 24, 22), "hair_dark": (15, 12, 10), "hair_hi": (75, 65, 60),
+        "style": "wolf_cut",
         "clothing_type": "street_vest",
         "clothing_base": (30, 30, 34), "clothing_accent": (217, 119, 6),
     }
 ]
 
-from generate_all_28_anime_styles import render_back_hair, render_face_and_clothing
-from anime_hair_engine import render_seamless_front_hair
-
 def render_color_tile(arch):
     im = Image.new("RGBA", (W_96, H_96), (0, 0, 0, 0))
 
-    # 1. Back hair layer (behind neck/face)
-    render_back_hair(im, arch)
+    skin_base, skin_shadow = arch["skin"]
+    hair_base = arch["hair_base"] + (255,)
+    hair_dark = arch["hair_dark"] + (255,)
+    hair_hi = arch["hair_hi"] + (255,)
+    c_base = arch["clothing_base"] + (255,)
+    c_acc = arch["clothing_accent"] + (255,)
+    style = arch["style"]
+    c_type = arch["clothing_type"]
 
-    # 2. Face, neck & streetwear clothing
-    render_face_and_clothing(im, arch)
+    # ---------------------------------------------------------
+    # 1. Back Hair Layer (Behind neck and face)
+    # ---------------------------------------------------------
+    back_im = Image.new("RGBA", (W_96, H_96), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(back_im)
 
-    # 3. Seamless front hair mass & bespoke bangs
-    render_seamless_front_hair(im, arch)
+    if style == "twin_tails":
+        l_pts = [(80, 115), (42, 165), (28, 255), (55, 305), (78, 260), (95, 185)]
+        bd.polygon(l_pts, fill=hair_dark)
+        bd.line(l_pts + [l_pts[0]], fill=(12, 12, 16, 255), width=3)
+        r_pts = [(304, 115), (342, 165), (356, 255), (329, 305), (306, 260), (289, 185)]
+        bd.polygon(r_pts, fill=hair_dark)
+        bd.line(r_pts + [r_pts[0]], fill=(12, 12, 16, 255), width=3)
+        # Hair ties
+        bd.ellipse([72, 110, 88, 126], fill=c_acc)
+        bd.ellipse([296, 110, 312, 126], fill=c_acc)
+    elif style == "drill_curls":
+        l_pts = [(85, 125), (45, 175), (35, 235), (55, 275), (45, 310), (70, 315), (75, 255), (65, 215), (92, 175)]
+        r_pts = [(299, 125), (339, 175), (349, 235), (329, 275), (339, 310), (314, 315), (309, 255), (319, 215), (292, 175)]
+        bd.polygon(l_pts, fill=hair_dark)
+        bd.polygon(r_pts, fill=hair_dark)
+        bd.line(l_pts + [l_pts[0]], fill=(12, 12, 16, 255), width=3)
+        bd.line(r_pts + [r_pts[0]], fill=(12, 12, 16, 255), width=3)
+    elif style == "high_ponytail":
+        pony = [(235, 65), (315, 45), (348, 105), (328, 185), (288, 195), (268, 125)]
+        bd.polygon(pony, fill=hair_dark)
+        bd.line(pony + [pony[0]], fill=(12, 12, 16, 255), width=3)
+        bd.ellipse([230, 60, 248, 78], fill=c_acc)
+    elif style in ["flowing_waves", "wavy_layers", "hime_cut"]:
+        b_pts_l = [(85, 115), (50, 175), (38, 255), (62, 315), (92, 305), (96, 235), (95, 160)]
+        b_pts_r = [(299, 115), (334, 175), (346, 255), (322, 315), (292, 305), (288, 235), (289, 160)]
+        bd.polygon(b_pts_l, fill=hair_dark)
+        bd.polygon(b_pts_r, fill=hair_dark)
+        bd.line(b_pts_l + [b_pts_l[0]], fill=(12, 12, 16, 255), width=3)
+        bd.line(b_pts_r + [b_pts_r[0]], fill=(12, 12, 16, 255), width=3)
+    elif style in ["wolf_cut", "messy_shonen"]:
+        l_w = [(88, 120), (55, 175), (48, 235), (70, 255), (88, 220), (95, 160)]
+        r_w = [(296, 120), (329, 175), (336, 235), (314, 255), (296, 220), (289, 160)]
+        bd.polygon(l_w, fill=hair_dark)
+        bd.polygon(r_w, fill=hair_dark)
+    im.alpha_composite(back_im)
+
+    # ---------------------------------------------------------
+    # 2. Face, Neck & Streetwear Clothing Layer
+    # ---------------------------------------------------------
+    face_im = Image.new("RGBA", (W_96, H_96), (0, 0, 0, 0))
+    fd = ImageDraw.Draw(face_im)
+
+    # Neck
+    neck_pts = [(152, 240), (150, 315), (234, 315), (232, 240)]
+    fd.polygon(neck_pts, fill=skin_base + (255,))
+    shadow_curve = bezier_curve((152, 248), (170, 280), (214, 280), (232, 248), 15)
+    shadow_pts = shadow_curve + [(234, 285), (150, 285)]
+    fd.polygon(shadow_pts, fill=skin_shadow + (255,))
+
+    fd.line([(172, 275), (184, 315)], fill=skin_shadow + (140,), width=3)
+    fd.line([(212, 275), (200, 315)], fill=skin_shadow + (140,), width=3)
+    fd.line([(160, 318), (192, 324), (224, 318)], fill=skin_shadow + (180,), width=3)
+
+    # Shoulders / Clothing
+    if c_type == "tech_hoodie":
+        hoodie_pts = [
+            (20, 384), (35, 335), (95, 305), (145, 292), (192, 318), (239, 292),
+            (289, 305), (349, 335), (364, 384)
+        ]
+        fd.polygon(hoodie_pts, fill=c_base)
+        fd.line([(145, 292), (192, 318), (239, 292)], fill=c_acc, width=6)
+        fd.line([(175, 318), (175, 370)], fill=(245, 245, 250, 255), width=4)
+        fd.line([(209, 318), (209, 370)], fill=(245, 245, 250, 255), width=4)
+        fd.line([(175, 366), (175, 372)], fill=c_acc, width=5)
+        fd.line([(209, 366), (209, 372)], fill=c_acc, width=5)
+        fd.line([(95, 305), (80, 384)], fill=(15, 15, 20, 180), width=3)
+        fd.line([(289, 305), (304, 384)], fill=(15, 15, 20, 180), width=3)
+        fd.line(hoodie_pts + [hoodie_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    elif c_type == "tactical_jacket":
+        jack_pts = [
+            (20, 384), (35, 335), (95, 305), (140, 280), (165, 270), (192, 310),
+            (219, 270), (244, 280), (289, 305), (349, 335), (364, 384)
+        ]
+        fd.polygon(jack_pts, fill=c_base)
+        fd.line([(165, 270), (192, 310), (198, 384)], fill=(210, 215, 225, 255), width=4)
+        fd.polygon([(90, 310), (125, 300), (120, 320), (85, 330)], fill=c_acc)
+        fd.polygon([(294, 310), (259, 300), (264, 320), (299, 330)], fill=c_acc)
+        fd.line(jack_pts + [jack_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    elif c_type == "turtleneck":
+        t_pts = [
+            (20, 384), (35, 335), (95, 305), (145, 290), (145, 245), (192, 250),
+            (239, 245), (239, 290), (289, 305), (349, 335), (364, 384)
+        ]
+        fd.polygon(t_pts, fill=c_base)
+        for y_r in [260, 272, 284]:
+            fd.line([(146, y_r), (238, y_r)], fill=c_acc, width=3)
+        fd.line(t_pts + [t_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    elif c_type == "bomber":
+        b_pts = [
+            (20, 384), (35, 330), (95, 305), (145, 300), (192, 335), (239, 300),
+            (289, 305), (349, 330), (364, 384)
+        ]
+        fd.polygon(b_pts, fill=c_base)
+        fd.line([(192, 335), (192, 384)], fill=(220, 225, 235, 255), width=5)
+        fd.line([(145, 300), (192, 335), (239, 300)], fill=c_acc, width=6)
+        fd.line(b_pts + [b_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    elif c_type == "blazer_tie":
+        blaz_pts = [
+            (20, 384), (35, 335), (95, 305), (140, 300), (192, 360), (244, 300),
+            (289, 305), (349, 335), (364, 384)
+        ]
+        fd.polygon(blaz_pts, fill=c_base)
+        fd.polygon([(150, 300), (192, 350), (234, 300)], fill=(248, 250, 255, 255))
+        fd.polygon([(188, 310), (196, 310), (194, 365), (190, 365)], fill=c_acc)
+        fd.line([(140, 300), (170, 340), (192, 360)], fill=(15, 15, 20, 255), width=3)
+        fd.line([(244, 300), (214, 340), (192, 360)], fill=(15, 15, 20, 255), width=3)
+        fd.line(blaz_pts + [blaz_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    elif c_type == "track_jacket":
+        tr_pts = [
+            (20, 384), (35, 335), (95, 305), (148, 290), (192, 305), (236, 290),
+            (289, 305), (349, 335), (364, 384)
+        ]
+        fd.polygon(tr_pts, fill=c_base)
+        fd.line([(60, 350), (115, 310)], fill=c_acc, width=4)
+        fd.line([(324, 350), (269, 310)], fill=c_acc, width=4)
+        fd.line([(192, 305), (192, 384)], fill=(230, 235, 245, 255), width=4)
+        fd.line(tr_pts + [tr_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    elif c_type == "cozy_scarf":
+        sh_pts = [(20, 384), (35, 335), (95, 310), (289, 310), (349, 335), (364, 384)]
+        fd.polygon(sh_pts, fill=(30, 35, 45, 255))
+        sc_pts = [(130, 260), (192, 275), (254, 260), (262, 320), (192, 340), (122, 320)]
+        fd.polygon(sc_pts, fill=c_base)
+        fd.polygon([(175, 315), (210, 315), (215, 375), (170, 375)], fill=c_acc)
+        fd.line(sc_pts + [sc_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    else:
+        c_pts = [
+            (20, 384), (35, 335), (95, 310), (148, 300), (192, 335), (236, 300),
+            (289, 310), (349, 335), (364, 384)
+        ]
+        fd.polygon(c_pts, fill=c_base)
+        fd.polygon([(155, 300), (192, 335), (229, 300)], fill=c_acc)
+        fd.line(c_pts + [c_pts[0]], fill=(15, 15, 20, 255), width=4)
+
+    # Ears
+    fd.ellipse([82, 148, 108, 205], fill=skin_base + (255,), outline=(170, 125, 105, 255), width=3)
+    fd.ellipse([88, 160, 104, 192], fill=skin_shadow + (255,))
+    fd.ellipse([276, 148, 302, 205], fill=skin_base + (255,), outline=(170, 125, 105, 255), width=3)
+    fd.ellipse([280, 160, 296, 192], fill=skin_shadow + (255,))
+
+    # Jawline
+    left_jaw = bezier_curve((96, 110), (94, 180), (120, 240), (192, 274), 25)
+    right_jaw = bezier_curve((192, 274), (264, 240), (290, 180), (288, 110), 25)
+    head_top = bezier_curve((288, 110), (280, 60), (104, 60), (96, 110), 20)
+    face_contour = left_jaw + right_jaw + head_top
+
+    fd.polygon(face_contour, fill=skin_base + (255,))
+    fd.line(left_jaw + right_jaw, fill=(170, 125, 105, 255), width=3)
+
+    # Soft Cheek Blush
+    blush = Image.new("RGBA", (W_96, H_96), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(blush)
+    bd.ellipse([115, 185, 155, 215], fill=(248, 125, 125, 125))
+    bd.ellipse([229, 185, 269, 215], fill=(248, 125, 125, 125))
+    blush = blush.filter(ImageFilter.GaussianBlur(radius=8))
+    face_im.alpha_composite(blush)
+
+    # Sculpted Nose
+    fd = ImageDraw.Draw(face_im)
+    fd.line([(190, 182), (190, 216)], fill=skin_shadow + (140,), width=2)
+    fd.line([(192, 184), (192, 217)], fill=(255, 250, 245, 180), width=2)
+    fd.ellipse([191, 217, 194, 220], fill=(255, 255, 255, 230))
+    fd.polygon([(187, 223), (192, 222), (197, 224), (192, 225)], fill=(160, 110, 90, 255))
+
+    im.alpha_composite(face_im)
+
+    # ---------------------------------------------------------
+    # 3. Front Hair Layer (Crown & Bangs Framing Face)
+    # ---------------------------------------------------------
+    front_im = Image.new("RGBA", (W_96, H_96), (0, 0, 0, 0))
+    frd = ImageDraw.Draw(front_im)
+
+    crown_top = bezier_curve((60, 115), (75, 45), (150, 22), (192, 22), 20) + \
+                bezier_curve((192, 22), (234, 22), (309, 45), (324, 115), 20)
+    hairline = bezier_curve((324, 115), (280, 90), (104, 90), (60, 115), 20)
+    frd.polygon(crown_top + hairline, fill=hair_base)
+
+    # Temple locks framing cheeks
+    left_lock = [(60, 115), (70, 160), (82, 225), (96, 238), (92, 185), (80, 125)]
+    frd.polygon(left_lock, fill=hair_base)
+    frd.line(left_lock + [left_lock[0]], fill=(12, 12, 16, 255), width=2)
+
+    right_lock = [(324, 115), (314, 160), (302, 225), (288, 238), (292, 185), (304, 125)]
+    frd.polygon(right_lock, fill=hair_base)
+    frd.line(right_lock + [right_lock[0]], fill=(12, 12, 16, 255), width=2)
+
+    # Specific bang cuts per style
+    if style in ["curtain_bangs", "flowing_waves"]:
+        # Wide center parted curtain bangs
+        b_l = [(120, 88), (145, 105), (160, 124), (168, 108), (150, 86)]
+        b_r = [(264, 88), (239, 105), (224, 124), (216, 108), (234, 86)]
+        frd.polygon(b_l, fill=hair_base)
+        frd.polygon(b_r, fill=hair_base)
+        frd.line(b_l + [b_l[0]], fill=(12, 12, 16, 255), width=2)
+        frd.line(b_r + [b_r[0]], fill=(12, 12, 16, 255), width=2)
+    elif style in ["side_part_fringe", "hime_cut"]:
+        # Diagonal swept fringe
+        b_l = [(110, 88), (135, 112), (165, 126), (175, 108), (145, 86)]
+        b_c = [(150, 86), (180, 110), (205, 124), (215, 106), (185, 86)]
+        frd.polygon(b_l, fill=hair_base)
+        frd.polygon(b_c, fill=hair_base)
+        frd.line(b_l + [b_l[0]], fill=(12, 12, 16, 255), width=2)
+        frd.line(b_c + [b_c[0]], fill=(12, 12, 16, 255), width=2)
+    else: # messy_shonen / runner_spikes / wolf_cut / twin_tails / short_undercut / etc.
+        b1 = [(110, 88), (125, 105), (135, 126), (138, 105), (130, 86)]
+        b2 = [(145, 86), (155, 105), (165, 122), (170, 105), (160, 86)]
+        b3 = [(225, 86), (220, 105), (218, 122), (228, 105), (240, 86)]
+        b4 = [(255, 88), (248, 105), (248, 126), (260, 105), (275, 88)]
+        for b in [b1, b2, b3, b4]:
+            frd.polygon(b, fill=hair_base)
+            frd.line(b + [b[0]], fill=(12, 12, 16, 255), width=2)
+
+    # Dynamic top hair tufts / spikes
+    frd.polygon([(170, 24), (185, 10), (192, 22)], fill=hair_base)
+    frd.polygon([(192, 22), (205, 12), (215, 24)], fill=hair_base)
+
+    # Angel Ring Sheen
+    halo = Image.new("RGBA", (W_96, H_96), (0, 0, 0, 0))
+    hd = ImageDraw.Draw(halo)
+    halo_pts = [(110, 68), (150, 55), (192, 50), (234, 55), (274, 68), (268, 78), (192, 62), (116, 78)]
+    hd.polygon(halo_pts, fill=hair_hi)
+    halo = halo.filter(ImageFilter.GaussianBlur(radius=4))
+    front_im.alpha_composite(halo)
+
+    frd = ImageDraw.Draw(front_im)
+    frd.line(crown_top, fill=(15, 15, 20, 255), width=3)
+
+    if style == "runner_spikes":
+        frd.polygon([(94, 98), (192, 85), (290, 98), (290, 118), (192, 105), (94, 118)], fill=(250, 250, 252, 255))
+        frd.line([(94, 98), (192, 85), (290, 98), (290, 118), (192, 105), (94, 118), (94, 98)], fill=(30, 30, 35, 255), width=3)
+
+    im.alpha_composite(front_im)
 
     return im.resize((96, 96), Image.Resampling.LANCZOS)
 
