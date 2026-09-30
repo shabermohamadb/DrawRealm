@@ -607,9 +607,28 @@ const POWERS = {
 
 const { POWER_COSTS } = require("./config");
 
-// Dynamically attach cost from POWER_COSTS across all powers
+// Section 7 Rarity Progression:
+// Common: Level 0+
+// Uncommon: Level 2+
+// Rare: Level 4+
+// Epic: Level 6+
+// Legendary: Level 8+
+// Ultimate: Level 10 + special requirement
+const RARITY_LEVEL_REQS = {
+  COMMON: 0,
+  UNCOMMON: 2,
+  RARE: 4,
+  EPIC: 6,
+  LEGENDARY: 8,
+  ULTIMATE: 10
+};
+
+// Dynamically attach cost and authoritative levelReq across all powers
 for (const power of Object.values(POWERS)) {
   power.cost = POWER_COSTS[power.rarity] || 5;
+  if (RARITY_LEVEL_REQS[power.rarity] !== undefined) {
+    power.levelReq = RARITY_LEVEL_REQS[power.rarity];
+  }
 }
 
 /**
@@ -628,35 +647,52 @@ function getUltimatePowers() {
 
 /**
  * Returns pool of powers not yet unlocked and eligible for the player's level
+ * Excludes already owned and already equipped powers
  */
-function getEligibleUnlockPool(level = 0, unlockedPowerIds = [], allowUltimate = false) {
+function getEligibleUnlockPool(level = 0, unlockedPowerIds = [], allowUltimate = false, equippedPowerIds = []) {
+  const ownedSet = new Set([...(unlockedPowerIds || []), ...(equippedPowerIds || [])]);
   return Object.values(POWERS).filter(p => {
-    if (unlockedPowerIds.includes(p.id)) return false;
+    if (ownedSet.has(p.id)) return false;
     if (p.isUltimate) {
       return allowUltimate && level >= 10;
     }
-    return (p.levelReq || 1) <= level;
+    return (p.levelReq || 0) <= level;
   });
 }
 
 /**
- * Generates 3 draft choices for power unlock progression
- * Filters for locked powers matching level prerequisites
+ * Generates exactly 3 draft choices for power unlock progression
+ * Filters for valid locked, unequipped powers matching level prerequisites
+ * Prevents duplicates, owned powers, equipped powers, and out-of-bounds rarities
  */
-function rollDraftChoices(level = 1, preferredBranch = null, unlockedPowerIds = []) {
+function rollDraftChoices(level = 0, preferredBranch = null, unlockedPowerIds = [], equippedPowerIds = []) {
   const allowUltimate = level >= 10 && Math.random() < 0.35;
-  let pool = getEligibleUnlockPool(level, unlockedPowerIds, allowUltimate);
+  const ownedSet = new Set([...(unlockedPowerIds || []), ...(equippedPowerIds || [])]);
+  let pool = getEligibleUnlockPool(level, unlockedPowerIds, allowUltimate, equippedPowerIds);
 
-  // If player has unlocked all eligible powers for their current level, allow preview of next tier
+  // If eligible pool has fewer than 3 powers, provide fallback from remaining unowned powers of lowest available tier
   if (pool.length < 3) {
-    const remainingAll = Object.values(POWERS).filter(p => !unlockedPowerIds.includes(p.id));
-    if (remainingAll.length <= 3) {
-      return remainingAll;
+    const remainingUnowned = Object.values(POWERS).filter(p => {
+      if (ownedSet.has(p.id)) return false;
+      if (p.isUltimate) return allowUltimate && level >= 10;
+      return true;
+    });
+
+    // Sort by levelReq ascending so closest level powers (e.g. Uncommon level 2) are picked first
+    remainingUnowned.sort((a, b) => (a.levelReq || 0) - (b.levelReq || 0));
+
+    // Combine pool with lowest remaining unowned powers to form exactly 3 choices
+    const combined = [...pool];
+    for (const p of remainingUnowned) {
+      if (combined.length >= 3) break;
+      if (!combined.some(existing => existing.id === p.id)) {
+        combined.push(p);
+      }
     }
-    pool = remainingAll;
+    pool = combined;
   }
 
-  // If preferred branch requested, prioritize it
+  // If preferred branch requested, prioritize it if enough choices exist
   if (preferredBranch) {
     const branchPool = pool.filter(p => p.branch === preferredBranch);
     if (branchPool.length >= 3) {
@@ -664,13 +700,14 @@ function rollDraftChoices(level = 1, preferredBranch = null, unlockedPowerIds = 
     }
   }
 
-  // Shuffle and pick 3
+  // Shuffle and pick exactly 3 unique powers
   const shuffled = [...pool].sort(() => 0.5 - Math.random());
   return shuffled.slice(0, 3);
 }
 
 module.exports = {
   POWERS,
+  RARITY_LEVEL_REQS,
   getNormalPowers,
   getUltimatePowers,
   getEligibleUnlockPool,

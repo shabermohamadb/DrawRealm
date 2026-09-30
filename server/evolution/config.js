@@ -3,9 +3,9 @@
  */
 
 const EVOLUTION_LEVELS = [
-  { level: 0, title: "Human", xpRequired: 0, maxPowers: 0, hasUltimate: false },
-  { level: 1, title: "Scout", xpRequired: 50, maxPowers: 1, hasUltimate: false },
-  { level: 2, title: "Swift", xpRequired: 120, maxPowers: 2, hasUltimate: false },
+  { level: 0, title: "Human", xpRequired: 0, maxPowers: 3, hasUltimate: false },
+  { level: 1, title: "Scout", xpRequired: 50, maxPowers: 3, hasUltimate: false },
+  { level: 2, title: "Swift", xpRequired: 120, maxPowers: 3, hasUltimate: false },
   { level: 3, title: "Creator", xpRequired: 220, maxPowers: 3, hasUltimate: false },
   { level: 4, title: "Mind Reader", xpRequired: 350, maxPowers: 3, hasUltimate: false },
   { level: 5, title: "Guardian", xpRequired: 520, maxPowers: 3, hasUltimate: false },
@@ -15,6 +15,8 @@ const EVOLUTION_LEVELS = [
   { level: 9, title: "Master", xpRequired: 1550, maxPowers: 3, hasUltimate: false },
   { level: 10, title: "Evolution", xpRequired: 2000, maxPowers: 3, hasUltimate: true }
 ];
+
+const POWER_THRESHOLD_INTERVAL = 5;
 
 const EVOLUTION_XP = {
   CORRECT: 10,
@@ -77,6 +79,7 @@ module.exports = {
   EVOLUTION_XP,
   POWER_POINTS_REWARDS,
   POWER_COSTS,
+  POWER_THRESHOLD_INTERVAL,
   BRANCHES,
   RARITIES
 };

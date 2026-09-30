@@ -244,6 +244,22 @@
   }
 
   function onEvolutionState(state) {
+    if (state) {
+      const oldLevel = (evolutionState && typeof evolutionState.level === "number") ? evolutionState.level : -1;
+      const newLevel = typeof state.level === "number" ? state.level : 0;
+      if (oldLevel >= 0 && newLevel > oldLevel) {
+        const isMilestone = (newLevel === 1 || newLevel === 2 || newLevel === 4 || newLevel === 6 || newLevel === 8 || newLevel === 10);
+        if (window.DrawRealmAudio) {
+          window.DrawRealmAudio.play(isMilestone ? "evolution_level_reached" : "level_up");
+        }
+      }
+      if (state.slots && state.slots[4] && (!evolutionState || !evolutionState.slots || !evolutionState.slots[4])) {
+        if (window.DrawRealmAudio) {
+          window.DrawRealmAudio.play("ultimate_available");
+        }
+      }
+    }
+
     evolutionState = state;
     isEvolutionActive = !!state.isEvolutionMode;
 
@@ -307,17 +323,15 @@
 
     const unlockBtn = document.getElementById("evolution-btn-unlock-power");
     if (unlockBtn) {
-      const pp = state.powerPoints || 0;
-      const choices = state.pendingDraft || [];
-      const hasAffordable = choices.some(c => (c.cost || 5) <= pp && (c.levelReq || 1) <= state.level);
-      const canUnlock = hasAffordable || pp >= 5;
-      unlockBtn.style.display = canUnlock ? "inline-flex" : "none";
+      unlockBtn.style.display = state.powerChoicePending ? "inline-flex" : "none";
     }
 
-    // Refresh draft modal if currently open
+    // Refresh draft modal only if choice is pending
     const draftModal = document.getElementById("overlay-evolution-choice");
-    if (draftModal && draftModal.style.display !== "none" && state.pendingDraft) {
+    if (state.powerChoicePending && state.pendingDraft && state.pendingDraft.length > 0) {
       renderDraftModal(state.pendingDraft);
+    } else if (draftModal && !state.powerChoicePending) {
+      draftModal.style.display = "none";
     }
 
     // 3. Render Normal Power Slots (Slots 0, 1, 2)
@@ -343,10 +357,7 @@
       showPowerTooltip(activeTooltipBtn);
     }
 
-    // 5. Check Pending Draft
-    renderDraftModal(state.pendingDraft);
-
-    // 6. Start / Refresh Cooldown Countdown Timer
+    // 5. Start / Refresh Cooldown Countdown Timer
     startCooldownTicker();
   }
 
@@ -443,6 +454,10 @@
           } else {
             delete evolutionState.cooldowns[pId];
             delete evolutionState.cooldownEndsAt[pId];
+            const isUlt = !!((evolutionState.slots && evolutionState.slots[4] === pId) || (evolutionState.ultimatePower && evolutionState.ultimatePower.id === pId));
+            if (window.DrawRealmAudio) {
+              window.DrawRealmAudio.play(isUlt ? "ultimate_available" : "power_ready_again");
+            }
           }
         }
       } else {
@@ -452,6 +467,10 @@
             hasActiveCd = true;
           } else {
             delete evolutionState.cooldowns[pId];
+            const isUlt = !!((evolutionState.slots && evolutionState.slots[4] === pId) || (evolutionState.ultimatePower && evolutionState.ultimatePower.id === pId));
+            if (window.DrawRealmAudio) {
+              window.DrawRealmAudio.play(isUlt ? "ultimate_available" : "power_ready_again");
+            }
           }
         }
       }
@@ -516,6 +535,9 @@
 
   function onPowerUnlocked(data) {
     if (!data) return;
+    if (window.DrawRealmAudio) {
+      window.DrawRealmAudio.play("power_unlocked");
+    }
     appendSystemChatMessage(`🎉 Unlocked power: ${data.powerName}! (${data.remainingPP} PP remaining)`, "#22c55e");
   }
 
@@ -528,6 +550,11 @@
       return;
     }
 
+    if (modal.style.display !== "flex") {
+      if (window.DrawRealmAudio) {
+        window.DrawRealmAudio.play("power_choice_appears");
+      }
+    }
     modal.style.display = "flex";
     const container = modal.querySelector(".evolution-draft-choices");
     if (!container) return;
@@ -544,26 +571,10 @@
     draftChoices.forEach(choice => {
       const card = document.createElement("div");
       card.className = "evolution-choice-card";
+      card.dataset.powerId = choice.id;
 
-      const cost = choice.cost || 5;
-      const levelReq = choice.isUltimate ? 10 : (choice.levelReq || 1);
+      const levelReq = choice.isUltimate ? 10 : (choice.levelReq !== undefined ? choice.levelReq : 0);
       const isLevelMet = currentLevel >= levelReq;
-      const canAfford = currentPP >= cost;
-
-      let btnClass = "btn-choice-unlock affordable";
-      let btnText = `UNLOCK (${cost} PP)`;
-      let btnDisabled = false;
-
-      if (!isLevelMet) {
-        btnClass = "btn-choice-unlock locked";
-        btnText = `LOCKED (Req. Lvl ${levelReq})`;
-        btnDisabled = true;
-      } else if (!canAfford) {
-        btnClass = "btn-choice-unlock unaffordable";
-        btnText = `Need ${cost} PP (Have ${currentPP})`;
-        btnDisabled = true;
-      }
-
       const branchCode = getBranchBadge(choice.branch, choice.id);
 
       card.innerHTML = `
@@ -576,20 +587,25 @@
         <div class="choice-level-req ${isLevelMet ? "met" : "locked"}">
           ${isLevelMet ? `✓ Level ${levelReq}+ Met` : `🔒 Requires Level ${levelReq}`}
         </div>
-        <div class="choice-cost">Cost: ${cost} PP</div>
         <div class="choice-desc">${choice.description}</div>
-        <button class="${btnClass}" ${btnDisabled ? "disabled" : ""}>${btnText}</button>
+        <button class="btn-choice-unlock affordable">CHOOSE POWER</button>
       `;
 
+      const selectAction = (e) => {
+        if (e) e.stopPropagation();
+        if (window.DrawRealmAudio) {
+          window.DrawRealmAudio.play("power_selected");
+        }
+        if (socket) {
+          socket.emit("evolution:unlock_power", { powerId: choice.id });
+        }
+        modal.style.display = "none";
+      };
+
+      card.addEventListener("click", selectAction);
       const unlockBtn = card.querySelector(".btn-choice-unlock");
-      if (unlockBtn && !btnDisabled) {
-        unlockBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (socket) {
-            socket.emit("evolution:unlock_power", { powerId: choice.id });
-          }
-          modal.style.display = "none";
-        });
+      if (unlockBtn) {
+        unlockBtn.addEventListener("click", selectAction);
       }
 
       container.appendChild(card);
@@ -952,10 +968,13 @@
     if (!isEvolutionActive || !socket) return;
     const dock = document.getElementById("evolution-dock");
     if (!dock) return;
-
     const btn = dock.querySelector(`.evolution-power-btn[data-key="${slotNum}"]`) ||
                 dock.querySelector(`.evolution-power-btn[data-key-num="${slotNum}"]`);
-    if (!btn || btn.classList.contains("empty") || btn.classList.contains("locked") || btn.classList.contains("on-cooldown")) return;
+    if (!btn || btn.classList.contains("empty") || btn.classList.contains("locked")) return;
+    if (btn.classList.contains("on-cooldown")) {
+      if (window.DrawRealmAudio) window.DrawRealmAudio.play("power_cooldown");
+      return;
+    }
 
     const pId = btn.dataset.powerId;
     if (pId) {
@@ -973,6 +992,10 @@
     if (!data) return;
     const reason = data.reason || "Action not allowed";
     const powerId = data.powerId;
+
+    if (reason.toLowerCase().includes("cooldown")) {
+      if (window.DrawRealmAudio) window.DrawRealmAudio.play("power_cooldown");
+    }
 
     if (powerId) {
       const btn = document.querySelector(`.evolution-power-btn[data-power-id="${powerId}"]`);
@@ -1010,6 +1033,10 @@
     if (!data) return;
     const myId = evolutionState ? evolutionState.playerId : null;
     if (myId && data.playerId === myId) {
+      const isUlt = !!(data.isUltimate || (evolutionState.slots && evolutionState.slots[4] === data.powerId) || (evolutionState.ultimatePower && evolutionState.ultimatePower.id === data.powerId));
+      if (window.DrawRealmAudio) {
+        window.DrawRealmAudio.play(isUlt ? "ultimate_activated" : "power_activated");
+      }
       if (!evolutionState.cooldowns) evolutionState.cooldowns = {};
       if (typeof data.cooldown === "number" && data.cooldown > 0) {
         evolutionState.cooldowns[data.powerId] = data.cooldown;
