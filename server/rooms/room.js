@@ -466,7 +466,13 @@ class Room {
       const color = Math.min(25, Math.max(0, parseInt(s[1], 10) || 0));
 
       if (toolType === 0) { // Brush stroke: [0, color, size, x1, y1, x2, y2]
-        const size = Math.min(40, Math.max(4, parseInt(s[2], 10) || 4));
+        let size = Math.min(40, Math.max(4, parseInt(s[2], 10) || 4));
+        if (this.evolution && this.evolution.isEvolutionMode()) {
+          const drawerState = this.evolution.players.get(senderPlayer.id);
+          if (drawerState && drawerState.buffs && drawerState.buffs.chaosBrushUntil > Date.now()) {
+            size = 40; // Server-enforced max brush size under Chaos Brush
+          }
+        }
         const x1 = Math.min(2000, Math.max(-500, parseInt(s[3], 10) || 0));
         const y1 = Math.min(2000, Math.max(-500, parseInt(s[4], 10) || 0));
         const x2 = Math.min(2000, Math.max(-500, parseInt(s[5], 10) || 0));

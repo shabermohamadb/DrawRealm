@@ -6,6 +6,7 @@
 const { EVOLUTION_LEVELS, EVOLUTION_XP, POWER_POINTS_REWARDS, POWER_COSTS } = require("./config");
 const { POWERS, rollDraftChoices } = require("./powers");
 const { checkAchievements } = require("./achievements");
+const { applyScoreChange } = require("../game/scoringEngine");
 const storage = require("./storage");
 
 class EvolutionManager {
@@ -94,6 +95,7 @@ class EvolutionManager {
         shapeAssist: false,
         magicBrushUntil: 0,
         trailBrushUntil: 0,
+        chaosBrushUntil: 0,
         overdrive: false
       },
       pendingDraft: rollDraftChoices(level, null, profile.unlockedPowers || [])
@@ -167,6 +169,7 @@ class EvolutionManager {
         shapeAssist: state.buffs.shapeAssist,
         magicBrush: state.buffs.magicBrushUntil > now,
         trailBrush: state.buffs.trailBrushUntil > now,
+        chaosBrush: state.buffs.chaosBrushUntil > now,
         overdrive: state.buffs.overdrive
       },
       pendingDraft: state.pendingDraft,
@@ -200,7 +203,14 @@ class EvolutionManager {
     const state = this.players.get(player.id);
     if (!state) return;
 
+    const oldXp = state.xp;
     state.xp += amount;
+    player.matchXpEarned = (player.matchXpEarned || 0) + amount;
+
+    console.log(
+      `[XP] Room: ${this.room.id} | Player: ${player.id} (${player.name}) | Reason: ${reason} | Old: ${oldXp} | Delta: +${amount} | New: ${state.xp}`
+    );
+
     const oldLevel = state.level;
 
     // Check level progression
@@ -289,7 +299,14 @@ class EvolutionManager {
     const state = this.players.get(player.id);
     if (!state) return;
 
-    state.powerPoints = (state.powerPoints || 0) + amount;
+    const oldPP = state.powerPoints || 0;
+    state.powerPoints = oldPP + amount;
+    player.matchPpEarned = (player.matchPpEarned || 0) + amount;
+
+    console.log(
+      `[PP] Room: ${this.room.id} | Player: ${player.id} (${player.name}) | Reason: ${reason} | Old: ${oldPP} | Delta: +${amount} | New: ${state.powerPoints}`
+    );
+
     const profile = storage.getProfile(player.name);
     profile.powerPoints = state.powerPoints;
     storage.save();
@@ -327,7 +344,10 @@ class EvolutionManager {
   /**
    * Handles guess results and awards XP, PP, + streaks
    */
-  onCorrectGuess(player, timeRemaining, totalDrawTime, isFirstGuess) {
+  /**
+   * Handles guess results and awards XP, PP, + streaks
+   */
+  onCorrectGuess(player, timeRemaining, totalDrawTime, isFirstGuess, pointBombTriggered = false) {
     if (!this.isEvolutionMode()) return;
     const state = this.players.get(player.id);
     if (!state) return;
@@ -368,7 +388,7 @@ class EvolutionManager {
     if (state.streak >= 3) {
       this.room.broadcast({
         id: 30,
-        data: { id: 0, msg: ` ${player.name} is on a ${state.streak} Guess Streak! (+${earnedXP} XP, +${earnedPP} PP)` }
+        data: { id: 0, msg: `🔥 ${player.name} is on a ${state.streak} Guess Streak! (+${earnedXP} XP, +${earnedPP} PP)` }
       });
     }
 
@@ -380,16 +400,12 @@ class EvolutionManager {
     this.addXP(player, earnedXP, isFast ? "Fast Guess + Streak" : "Correct Guess");
     this.addPowerPoints(player, earnedPP, isFast ? "Fast Guess + Streak" : "Correct Guess");
 
-    // Check Point Bomb room event
-    if (this.pointBomb && Date.now() < this.pointBomb.expiresAt) {
-      player.score += 100;
-      const drawer = this.room.players.get(this.room.game.currentDrawerId);
-      if (drawer) drawer.score += 50;
+    // Point bomb announcement if detonated
+    if (pointBombTriggered) {
       this.room.broadcast({
         id: 30,
-        data: { id: 0, msg: `POINT BOMB DETONATED! ${player.name} scored +100 bonus pts!` }
+        data: { id: 0, msg: `💣 POINT BOMB DETONATED! ${player.name} scored +100 bonus pts!` }
       });
-      this.pointBomb = null;
     }
   }
 
@@ -418,6 +434,8 @@ class EvolutionManager {
       state.buffs.shapeAssist = false;
       state.buffs.magicBrushUntil = 0;
       state.buffs.trailBrushUntil = 0;
+      state.buffs.chaosBrushUntil = 0;
+      state.buffs.secondThought = false;
       state.buffs.overdrive = false;
 
       // Reset streak if player didn't guess
@@ -427,6 +445,8 @@ class EvolutionManager {
       }
       if (player) this.syncPlayerState(player);
     }
+    // Clean up transient room modifiers
+    this.activeRoomModifiers.clear();
   }
 
   /**
@@ -714,6 +734,8 @@ class EvolutionManager {
 
     if (!profile.stats) profile.stats = {};
 
+    console.log(`[POWER] Room: ${this.room.id} | Player: ${player.id} (${player.name}) | Power: ${powerId} (${power.name}) | Target: ${target ? target.name : "N/A"}`);
+
     // ==========================================
     // EXECUTE AUTHORITATIVE POWER EFFECTS
     // ==========================================
@@ -751,8 +773,8 @@ class EvolutionManager {
           effectData = { type: "score_steal", blocked: true, targetId: target.id };
         } else {
           const stealAmount = Math.min(40, Math.max(0, target.score));
-          target.score = Math.max(0, target.score - stealAmount);
-          player.score += stealAmount;
+          applyScoreChange(this.room, target, -stealAmount, `Score Steal by ${player.name}`);
+          applyScoreChange(this.room, player, stealAmount, `Score Stolen from ${target.name}`);
           broadcastMsg = `🦹 ${player.name} stole ${stealAmount} points from ${target.name}!`;
           effectData = { type: "score_steal", amount: stealAmount, targetId: target.id };
         }
@@ -940,7 +962,9 @@ class EvolutionManager {
           { name: "Free Letter Hint", action: () => { game.revealHint(); } },
           { name: "Point Splash (+25 pts to guessers)", action: () => {
               for (const p of this.room.players.values()) {
-                if (p.id !== game.currentDrawerId) p.score += 25;
+                if (p.id !== game.currentDrawerId) {
+                  applyScoreChange(this.room, p, 25, "Randomizer Point Splash");
+                }
               }
             }
           }
@@ -970,6 +994,7 @@ class EvolutionManager {
             this.syncPlayerState(this.room.players.get(pId));
           }
         }
+        this.activeRoomModifiers.set("reverse_canvas", { expiresAt: now + 15000, immunePlayerIds });
         effectData = { type: "reverse_canvas", duration: 15, immunePlayerIds };
         this.room.broadcastCustom("evolution:effect", effectData);
         broadcastMsg = `🔄 ${player.name} reversed the drawing canvas for 15 seconds!`;
@@ -987,6 +1012,8 @@ class EvolutionManager {
           effectData = { type: "chaos_brush", blocked: true };
           this.syncPlayerState(drawer);
         } else {
+          if (drawerState) drawerState.buffs.chaosBrushUntil = now + 10000;
+          this.activeRoomModifiers.set("chaos_brush", { expiresAt: now + 10000, drawerId: drawer ? drawer.id : null });
           effectData = { type: "chaos_brush", duration: 10 };
           this.room.broadcastCustom("evolution:effect", effectData);
           broadcastMsg = `🌀 Chaos Brush activated by ${player.name}: Maximum brush size locked for 10s!`;
@@ -1119,7 +1146,7 @@ class EvolutionManager {
 
       case "apocalypse": {
         for (const p of this.room.players.values()) {
-          p.score += 50;
+          applyScoreChange(this.room, p, 50, "Apocalypse Ultimate Bonus");
         }
         const drawTime = parseInt(this.room.settings[2]) || 80;
         game.timeLeft = Math.min(drawTime, game.timeLeft + 10);

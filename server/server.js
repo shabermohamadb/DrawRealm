@@ -245,7 +245,20 @@ io.on("connection", (socket) => {
 
       // Rate limit check
       const rateType = id === 19 ? "draw" : id === 30 ? "chat" : "action";
-      if (!rateLimiter.checkSocketRate(socket.id, rateType)) {
+      if (rateType === "chat" && room.evolution && room.evolution.isEvolutionMode()) {
+        const pState = room.evolution.getPlayerState(player.id);
+        if (pState && pState.buffs && pState.buffs.secondThought) {
+          // Second Thought protects against chat spam rate limit once
+          pState.buffs.secondThought = false;
+          room.evolution.syncPlayerState(player);
+          socket.emit("data", {
+            id: 30,
+            data: { id: 0, msg: "💭 Second Thought consumed: Chat spam rate limit bypassed." }
+          });
+        } else if (!rateLimiter.checkSocketRate(socket.id, rateType)) {
+          return; // Drop flooded packets
+        }
+      } else if (!rateLimiter.checkSocketRate(socket.id, rateType)) {
         return; // Drop flooded packets
       }
 

@@ -41,6 +41,9 @@ class Player {
     this.disconnectTimeout = null;
     this.reconnectToken = reconnectToken || crypto.randomUUID();
     this.profileId = null;
+    this.matchXpEarned = 0;
+    this.matchPpEarned = 0;
+    this.guessedCount = 0;
   }
 
   /**
@@ -58,6 +61,9 @@ class Player {
     this.score = 0;
     this.guessed = false;
     this.guessTime = 0;
+    this.guessedCount = 0;
+    this.matchXpEarned = 0;
+    this.matchPpEarned = 0;
   }
 
   /**

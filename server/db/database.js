@@ -279,7 +279,8 @@ class DatabaseManager {
       const supabasePlayers = playersList.map(p => ({
         playerId: p.profileId,
         score: p.score || 0,
-        xpEarned: p.score || 0,
+        xpEarned: (p.matchXpEarned !== undefined ? p.matchXpEarned : (p.xpEarned || 0)),
+        powerPointsEarned: (p.matchPpEarned !== undefined ? p.matchPpEarned : (p.powerPointsEarned || 0)),
         position: p.position || 1,
         correctGuesses: p.guessedCount || 0,
         roundsPlayed: rounds || 3

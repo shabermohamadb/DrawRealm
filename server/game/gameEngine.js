@@ -1,5 +1,6 @@
 const { getRandomWords } = require("../utils/words");
 const { isCloseGuess } = require("../utils/levenshtein");
+const { calculateGuessPoints, calculateDrawerPoints, applyScoreChange } = require("./scoringEngine");
 const db = require("../db/database");
 
 // skribbl.io Client State Constants
@@ -65,6 +66,9 @@ class GameEngine {
     this.turnStartScores = new Map();
     this.guessOrder = 0;
     this.lastRoundCanvas = [];
+    this.turnEnding = false;
+    this.roundStarting = false;
+    this.gameEnding = false;
   }
 
   /**
@@ -73,6 +77,9 @@ class GameEngine {
   start(customWordsStr = "") {
     if (this.state !== STATES.LOBBY && this.state !== STATES.GAME_OVER) return;
 
+    this.turnEnding = false;
+    this.roundStarting = false;
+    this.gameEnding = false;
     this.gameStartedAt = Date.now();
 
     const activePlayers = this.room.getActivePlayers();
@@ -112,10 +119,13 @@ class GameEngine {
    * Advances to next round
    */
   startNextRound() {
+    if (this.roundStarting) return;
+    this.roundStarting = true;
     this.clearTimer();
     this.currentRound++;
 
     if (this.currentRound > this.totalRounds) {
+      this.roundStarting = false;
       this.endGame();
       return;
     }
@@ -123,6 +133,7 @@ class GameEngine {
     // Prepare drawer queue for this round
     const activePlayers = this.room.getActivePlayers();
     if (activePlayers.length < 2) {
+      this.roundStarting = false;
       this.resetToLobby();
       return;
     }
@@ -138,6 +149,7 @@ class GameEngine {
     // State 2: Round X announcement (0-indexed round number in data)
     this.setState(STATES.ROUND_START, 3, this.currentRound - 1);
     this.startTimer(3, () => {
+      this.roundStarting = false;
       this.startNextTurn();
     });
   }
@@ -146,6 +158,7 @@ class GameEngine {
    * Advances to next drawing turn in current round
    */
   startNextTurn() {
+    this.turnEnding = false;
     this.clearTimer();
 
     // Check if round finished
@@ -387,8 +400,8 @@ class GameEngine {
     const trimmed = text.trim();
     if (trimmed.length === 0) return;
 
-    // Outside drawing phase: standard chat
-    if (this.state !== STATES.DRAWING) {
+    // Outside drawing phase, or if turn is ending / clock expired: standard chat
+    if (this.state !== STATES.DRAWING || this.timeLeft <= 0 || this.turnEnding) {
       this.room.broadcast({
         id: PACKETS.CHAT,
         data: { id: player.id, msg: trimmed }
@@ -437,59 +450,59 @@ class GameEngine {
     if (isMatch) {
       // Correct guess!
       player.guessed = true;
+      player.guessedCount = (player.guessedCount || 0) + 1;
       this.guessOrder++;
 
       const drawTime = parseInt(this.room.settings[SETTINGS.DRAWTIME]) || 80;
-      const timeRatio = Math.max(0.1, this.timeLeft / drawTime);
-      let earnedScore = Math.max(100, Math.round(500 * timeRatio));
+      const pState = (mode === 6 && this.room.evolution) ? this.room.evolution.getPlayerState(player.id) : null;
+      const pointBombActive = !!(this.room.evolution && this.room.evolution.pointBomb && Date.now() < this.room.evolution.pointBomb.expiresAt);
 
-      // Game Modes scoring adjustments
-      if (mode === 3 || (mode === 5 && this.chaosModifier && this.chaosModifier.guessRush)) {
-        // Guess Rush: Tiered placement rewards
-        if (this.guessOrder === 1) earnedScore = Math.round(earnedScore * 1.5);
-        else if (this.guessOrder === 2) earnedScore = Math.round(earnedScore * 1.25);
-      }
+      const guessScoring = calculateGuessPoints({
+        timeLeft: this.timeLeft,
+        totalDrawTime: drawTime,
+        guessOrder: this.guessOrder,
+        mode,
+        chaosModifier: this.chaosModifier,
+        buffs: pState ? pState.buffs : null,
+        pointBombActive
+      });
 
-      if (mode === 5 && this.chaosModifier && this.chaosModifier.doublePoints) {
-        earnedScore *= 2;
-      }
-
-      // Evolution Mode scoring buffs
-      if (mode === 6 && this.room.evolution) {
-        const pState = this.room.evolution.getPlayerState(player.id);
-        if (pState) {
-          if (pState.buffs.scoreSurge) {
-            earnedScore = Math.round(earnedScore * 1.5);
-            pState.buffs.scoreSurge = false;
-          }
-          if (pState.buffs.doubleStrike > 0) {
-            earnedScore = Math.round(earnedScore * 1.3);
-            pState.buffs.doubleStrike--;
-          }
-          if (pState.buffs.bullseye && (drawTime - this.timeLeft) <= 15) {
-            earnedScore += 100;
-            pState.buffs.bullseye = false;
-          }
-          if (pState.buffs.overdrive) {
-            earnedScore = Math.round(earnedScore * 1.5);
-          }
+      // Consume one-time player buffs
+      if (pState) {
+        if (guessScoring.consumedBuffs.scoreSurge) pState.buffs.scoreSurge = false;
+        if (guessScoring.consumedBuffs.doubleStrike && pState.buffs.doubleStrike > 0) {
+          pState.buffs.doubleStrike = Math.max(0, pState.buffs.doubleStrike - 1);
         }
+        if (guessScoring.consumedBuffs.bullseye) pState.buffs.bullseye = false;
+      }
+      if (guessScoring.consumedBuffs.pointBomb && this.room.evolution) {
+        this.room.evolution.pointBomb = null;
       }
 
-      player.score += earnedScore;
+      // Apply authoritative score change to guesser
+      applyScoreChange(
+        this.room,
+        player,
+        guessScoring.totalScore,
+        `Correct Guess (${this.guessOrder === 1 ? "1st" : this.guessOrder + "th"} Solver)`
+      );
 
       // Reward drawer as well
       const drawer = this.room.players.get(this.currentDrawerId);
       if (drawer) {
-        let drawerScore = Math.max(25, Math.round(earnedScore * 0.4));
-        if (mode === 6 && this.room.evolution) {
-          const dState = this.room.evolution.getPlayerState(drawer.id);
-          if (dState && dState.buffs.scoreSurge) {
-            drawerScore = Math.round(drawerScore * 1.5);
-            dState.buffs.scoreSurge = false;
-          }
+        const dState = (mode === 6 && this.room.evolution) ? this.room.evolution.getPlayerState(drawer.id) : null;
+        const drawerScoring = calculateDrawerPoints({
+          baseGuesserScore: guessScoring.baseScore,
+          guessOrder: this.guessOrder,
+          drawerBuffs: dState ? dState.buffs : null,
+          pointBombActive: guessScoring.consumedBuffs.pointBomb
+        });
+
+        if (dState && drawerScoring.consumedBuffs.scoreSurge) {
+          dState.buffs.scoreSurge = false;
         }
-        drawer.score += drawerScore;
+
+        applyScoreChange(this.room, drawer, drawerScoring.totalScore, "Drawer Word Solved");
       }
 
       // Evolution Mode: Award XP & update streaks
@@ -539,7 +552,8 @@ class GameEngine {
    * Concludes a drawing turn and reveals word & scores
    */
   endTurn(reason) {
-    if (this.state === STATES.REVEAL) return;
+    if (this.turnEnding || this.state === STATES.REVEAL) return;
+    this.turnEnding = true;
     this.clearTimer();
     this.state = STATES.REVEAL;
 
@@ -592,6 +606,8 @@ class GameEngine {
    * Concludes the entire game and presents podium
    */
   endGame() {
+    if (this.gameEnding || this.state === STATES.GAME_OVER) return;
+    this.gameEnding = true;
     this.clearTimer();
     this.state = STATES.GAME_OVER;
 
@@ -628,7 +644,9 @@ class GameEngine {
             name: p.name,
             score: p.score,
             position: idx + 1,
-            guessedCount: p.guessedCount || 0
+            guessedCount: p.guessedCount || 0,
+            matchXpEarned: p.matchXpEarned || 0,
+            matchPpEarned: p.matchPpEarned || 0
           }))
         }
       });
@@ -648,6 +666,9 @@ class GameEngine {
    * Returns room to lobby state
    */
   resetToLobby() {
+    this.turnEnding = false;
+    this.roundStarting = false;
+    this.gameEnding = false;
     this.clearTimer();
     this.state = STATES.LOBBY;
     this.currentRound = 0;

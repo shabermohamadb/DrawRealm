@@ -125,6 +125,21 @@
     sock.on("evolution:power_used", onEvolutionPowerUsed);
     sock.on("evolution:power_activated", onPowerActivated);
     sock.on("evolution:power_error", onPowerError);
+    sock.on("evolution:score_sync", (data) => {
+      if (!data) return;
+      const playersListEl = document.querySelector("#game-players .players-list");
+      if (playersListEl) {
+        const playerEls = playersListEl.querySelectorAll(".player");
+        playerEls.forEach(el => {
+          if (el.dataset && el.dataset.playerId == data.playerId) {
+            const scoreEl = el.querySelector(".score");
+            if (scoreEl) {
+              scoreEl.textContent = `${data.score} points`;
+            }
+          }
+        });
+      }
+    });
     sock.on("evolution:announcement", (data) => {
       if (data && data.msg) appendSystemChatMessage(data.msg, data.color);
     });
