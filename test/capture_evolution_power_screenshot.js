@@ -123,6 +123,10 @@ async function capture() {
     await tab.waitFor("document.querySelector('#game').style.display === 'flex'");
     await new Promise(r => setTimeout(r, 800));
 
+    // First: Capture standard mode (Evolution inactive) to verify original bar
+    await tab.captureScreenshot(path.join(ARTIFACT_DIR, "evolution_bar_standard_mode.png"));
+    console.log("Saved standard mode screenshot: evolution_bar_standard_mode.png");
+
     // Switch word mode to Evolution (index 6, value 6)
     console.log("Switching to Evolution Mode...");
     await tab.eval(`
@@ -142,25 +146,37 @@ async function capture() {
     `);
     await new Promise(r => setTimeout(r, 800));
 
-    // Close evolution intro modal if open
+    // Close any open modals and simulate active guessing phase text
     await tab.eval(`
-      const modal = document.getElementById('drawrealm-modal-evolution-intro');
-      if (modal) modal.style.display = 'none';
+      document.querySelectorAll('[id*="modal"], [id*="draft"], .modal-overlay').forEach(el => {
+        el.style.display = 'none';
+      });
+      const desc = document.querySelector('#game-word .description');
+      if (desc) desc.textContent = 'GUESS THIS';
+      const hintsCont = document.querySelector('#game-word .hints .container');
+      if (hintsCont) {
+        hintsCont.innerHTML = '<span class="hint">_</span><span class="hint">_</span><span class="hint">_</span><span class="hint">_</span><span class="hint">_</span>';
+      }
     `);
     await new Promise(r => setTimeout(r, 400));
 
-    // Hover over equipped power button to show tooltip
-    await tab.eval(`
-      const btn = document.querySelector('.evolution-power-btn.available') || document.querySelector('.evolution-power-btn');
-      if (btn) {
-        btn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-      }
-    `);
-    await new Promise(r => setTimeout(r, 500));
-
+    // 1. Capture clean desktop view
     await tab.captureScreenshot(path.join(ARTIFACT_DIR, "evolution_powers_ingame.png"));
+    console.log("Saved desktop view: evolution_powers_ingame.png");
+
+    // 2. Capture mobile viewport
+    await tab.send("Emulation.setDeviceMetricsOverride", {
+      width: 480,
+      height: 800,
+      deviceScaleFactor: 1,
+      mobile: true
+    });
+    await new Promise(r => setTimeout(r, 500));
+    await tab.captureScreenshot(path.join(ARTIFACT_DIR, "evolution_powers_mobile.png"));
+    console.log("Saved mobile view: evolution_powers_mobile.png");
+
     tab.close();
-    console.log("Captured evolution_powers_ingame.png successfully!");
+    console.log("All screenshots captured successfully!");
   } finally {
     chrome.kill();
   }
@@ -170,3 +186,4 @@ capture().then(() => process.exit(0)).catch(err => {
   console.error(err);
   process.exit(1);
 });
+

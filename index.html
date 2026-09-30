@@ -218,10 +218,36 @@
         <div id="game-settings" data-tooltip="Settings" data-tooltipdir="W"><div class="icon"></div></div>
         <div id="game-clock"><div class="text"></div></div>
         <div id="game-round"><div class="text"></div></div>
-        <div id="game-word">
-          <div class="description">DRAW THIS</div>
-          <div class="word"></div>
-          <div class="hints"><div class="container"></div></div>
+        <div class="game-bar-center">
+          <div id="evolution-dock" style="display:none">
+            <div class="evolution-badge-container">
+              <span class="evolution-badge-level">LEVEL 0 - HUMAN</span>
+              <div class="evolution-xp-bar-bg"><div class="evolution-xp-bar-fill" style="width:0%"></div></div>
+              <span class="evolution-badge-xp">0 / 50 XP</span>
+              <span class="evolution-badge-streak" style="display:none">Streak: 0</span>
+              <span class="evolution-badge-pp" id="evolution-badge-pp" title="Power Points (PP) earned from gameplay actions"><span class="pp-icon">⚡</span> <span class="pp-count">0</span> PP</span>
+              <button id="evolution-btn-unlock-power" class="evolution-btn-unlock-power" style="display:none;" title="Choose and unlock a new power">⚡ UNLOCK POWER</button>
+            </div>
+            <div class="evolution-powers-container">
+              <div class="evolution-slot" data-slot="0">
+                <button class="evolution-power-btn empty" data-key="1"><span class="key-badge">1</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
+              </div>
+              <div class="evolution-slot" data-slot="1">
+                <button class="evolution-power-btn empty" data-key="2"><span class="key-badge">2</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
+              </div>
+              <div class="evolution-slot" data-slot="2">
+                <button class="evolution-power-btn empty" data-key="3"><span class="key-badge">3</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
+              </div>
+              <div class="evolution-slot evolution-slot-ultimate" data-slot="3">
+                <button class="evolution-power-btn ultimate empty" data-key="4"><span class="key-badge">4</span><span class="power-icon"></span><span class="power-name">LOCKED</span><div class="cooldown-overlay" style="display:none"></div></button>
+              </div>
+            </div>
+          </div>
+          <div id="game-word">
+            <div class="description">DRAW THIS</div>
+            <div class="word"></div>
+            <div class="hints"><div class="container"></div></div>
+          </div>
         </div>
       </div>
       <div id="game-players"><div class="players-list"></div></div>
@@ -368,30 +394,6 @@
         </div>
         <div class="toolbar-group-tools"></div>
         <div class="toolbar-group-actions"></div>
-      </div>
-      <div id="evolution-dock" style="display:none">
-        <div class="evolution-badge-container">
-          <span class="evolution-badge-level">LEVEL 0 - HUMAN</span>
-          <div class="evolution-xp-bar-bg"><div class="evolution-xp-bar-fill" style="width:0%"></div></div>
-          <span class="evolution-badge-xp">0 / 50 XP</span>
-          <span class="evolution-badge-streak" style="display:none">Streak: 0</span>
-          <span class="evolution-badge-pp" id="evolution-badge-pp" title="Power Points (PP) earned from gameplay actions"><span class="pp-icon">⚡</span> <span class="pp-count">0</span> PP</span>
-          <button id="evolution-btn-unlock-power" class="evolution-btn-unlock-power" style="display:none;" title="Choose and unlock a new power">⚡ UNLOCK POWER</button>
-        </div>
-        <div class="evolution-powers-container">
-          <div class="evolution-slot" data-slot="0">
-            <button class="evolution-power-btn empty" data-key="1"><span class="key-badge">1</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
-          </div>
-          <div class="evolution-slot" data-slot="1">
-            <button class="evolution-power-btn empty" data-key="2"><span class="key-badge">2</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
-          </div>
-          <div class="evolution-slot" data-slot="2">
-            <button class="evolution-power-btn empty" data-key="3"><span class="key-badge">3</span><span class="power-icon"></span><span class="power-name">EMPTY</span><div class="cooldown-overlay" style="display:none"></div></button>
-          </div>
-          <div class="evolution-slot evolution-slot-ultimate" data-slot="3">
-            <button class="evolution-power-btn ultimate empty" data-key="4"><span class="key-badge">4</span><span class="power-icon"></span><span class="power-name">LOCKED</span><div class="cooldown-overlay" style="display:none"></div></button>
-          </div>
-        </div>
       </div>
       <div id="game-chat">
         <div class="ad-2"></div>
