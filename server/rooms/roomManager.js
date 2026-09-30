@@ -460,6 +460,18 @@ class RoomManager {
     this.tokenMap.clear();
     console.log("[RoomManager] RoomManager destroyed cleanly.");
   }
+
+  shutdown() {
+    return this.destroy();
+  }
+
+  close() {
+    return this.destroy();
+  }
+
+  cleanup() {
+    return this.destroy();
+  }
 }
 
 module.exports = new RoomManager();

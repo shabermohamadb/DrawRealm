@@ -123,17 +123,17 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // Reconnection Token check: if client provides a reconnect token, attempt session resume
+      const isCreate = data.create === 1;
+      const joinRoomId = (data.join && data.join !== 0 && data.join !== "0") ? String(data.join).trim() : null;
+
+      // Reconnection Token check: if client provides a reconnect token and is NOT explicitly creating a new room, attempt session resume
       const token = data.reconnectToken || data.token;
-      if (token) {
+      if (token && !isCreate) {
         const reconnected = roomManager.tryReconnect(socket, token);
         if (reconnected) {
           return; // Session successfully resumed and full state sent
         }
       }
-
-      const isCreate = data.create === 1;
-      const joinRoomId = (data.join && data.join !== 0 && data.join !== "0") ? String(data.join).trim() : null;
 
       // Validate player name strictly (reject empty, spaces only, length < 2 or > 20, disallowed characters)
       const rawName = (data && typeof data.name === "string") ? data.name : "";
@@ -510,7 +510,13 @@ function gracefulShutdown(signal) {
 
   // Stop room GC & teardown active rooms
   try {
-    roomManager.destroy();
+    if (typeof roomManager.destroy === "function") {
+      roomManager.destroy();
+    } else if (typeof roomManager.shutdown === "function") {
+      roomManager.shutdown();
+    } else if (typeof roomManager.cleanup === "function") {
+      roomManager.cleanup();
+    }
   } catch (err) {
     console.error("[Shutdown] Error during roomManager.destroy:", err.message);
   }
@@ -551,6 +557,7 @@ function startServer(port) {
   server.removeAllListeners("error");
 
   server.once("listening", () => {
+    console.log(`[TimeCheck] serverTime = ${new Date().toISOString()}`);
     console.log(`DrawRealm Production server running on 0.0.0.0:${port} [Env: ${config.NODE_ENV}]`);
   });
 

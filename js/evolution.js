@@ -71,11 +71,15 @@
     sock.emit = function (evt, ...args) {
       if (evt === "login" && args[0] && typeof args[0] === "object") {
         try {
-          const raw = sessionStorage.getItem("drawrealm_session");
-          if (raw) {
-            const sess = JSON.parse(raw);
-            if (sess && sess.token) {
-              args[0].reconnectToken = sess.token;
+          if (args[0].create === 1) {
+            sessionStorage.removeItem("drawrealm_session");
+          } else {
+            const raw = sessionStorage.getItem("drawrealm_session");
+            if (raw) {
+              const sess = JSON.parse(raw);
+              if (sess && sess.token) {
+                args[0].reconnectToken = sess.token;
+              }
             }
           }
           if (window.__drawrealmPendingRoom && args[0].create === 1) {
@@ -165,6 +169,9 @@
     });
 
     sock.on("joinerr", (err) => {
+      try {
+        sessionStorage.removeItem("drawrealm_session");
+      } catch (e) {}
       let msg = "Could not join room.";
       if (err === 1) msg = "Room not found. Check the room code.";
       else if (err === 2) msg = "This room is full.";

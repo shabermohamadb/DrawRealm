@@ -16,7 +16,7 @@ const config = {
 
   // Supabase PostgreSQL Configuration
   SUPABASE_URL: process.env.SUPABASE_URL || "",
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY || "",
 
   // Database path / connection string
   DATABASE_URL: process.env.DATABASE_URL || path.resolve(__dirname, "data/drawrealm.sqlite"),

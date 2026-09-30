@@ -15,6 +15,8 @@ class SupabaseService {
   constructor() {
     this.client = null;
     this.isConfigured = false;
+    this.pendingProfileLookups = new Map(); // cleanUsername.toLowerCase() -> Promise<profile>
+    this.profileCache = new Map(); // cleanUsername.toLowerCase() -> { profile, cachedAt }
     this.tableSupport = {
       player_powers: true,
       equipped_powers: true,
@@ -27,6 +29,9 @@ class SupabaseService {
   }
 
   init() {
+    // Authoritative Server Clock Check at startup (never prints secrets or tokens)
+    console.log(`[TimeCheck] serverTime = ${new Date().toISOString()}`);
+
     if (!config.SUPABASE_URL || !config.SUPABASE_SERVICE_ROLE_KEY) {
       console.warn("[Supabase] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing. Operating in offline/local mode.");
       this.isConfigured = false;
@@ -69,25 +74,79 @@ class SupabaseService {
   }
 
   /**
-   * Retrieves an existing player or creates a complete default profile
+   * Retrieves an existing player or creates a complete default profile.
+   * Deduplicates concurrent lookups for the same player, caches recently fetched profiles,
+   * and handles transient JWT future iat errors gracefully with clock skew recovery.
    */
   async getOrCreatePlayer(username, displayName) {
     if (!this.isConfigured || !this.client) return null;
 
     const cleanUsername = String(username || "Player").trim().slice(0, 30);
+    const key = cleanUsername.toLowerCase();
+
+    // Check memory cache (TTL: 60s)
+    const cached = this.profileCache.get(key);
+    if (cached && (Date.now() - cached.cachedAt < 60000)) {
+      return cached.profile;
+    }
+
+    // Deduplicate concurrent in-flight lookups for the same player
+    if (this.pendingProfileLookups.has(key)) {
+      return this.pendingProfileLookups.get(key);
+    }
+
+    const lookupPromise = (async () => {
+      try {
+        const result = await this._executeGetOrCreatePlayer(cleanUsername, displayName);
+        if (result) {
+          this.profileCache.set(key, { profile: result, cachedAt: Date.now() });
+        }
+        return result;
+      } finally {
+        this.pendingProfileLookups.delete(key);
+      }
+    })();
+
+    this.pendingProfileLookups.set(key, lookupPromise);
+    return lookupPromise;
+  }
+
+  async _executeGetOrCreatePlayer(cleanUsername, displayName) {
     const cleanDisplay = String(displayName || cleanUsername).trim().slice(0, 50);
 
     try {
       // 1. Check if profile exists
-      let { data: profiles, error } = await this.client
+      let queryRes = await this.client
         .from("profiles")
         .select("*")
         .eq("username", cleanUsername)
         .limit(1);
 
+      let { data: profiles, error } = queryRes;
+
       if (error) {
-        console.error(`[Supabase] Error looking up profile for ${cleanUsername}:`, error.message);
-        return null;
+        if (error.message && error.message.includes("JWT issued at future")) {
+          console.error(`[Supabase] Profile lookup authentication error\nplayer: ${cleanUsername}\nerror: ${error.message}`);
+
+          // Clock skew recovery: wait 1500ms and retry through authoritative client
+          await new Promise(r => setTimeout(r, 1500));
+          const retryRes = await this.client
+            .from("profiles")
+            .select("*")
+            .eq("username", cleanUsername)
+            .limit(1);
+
+          if (!retryRes.error) {
+            profiles = retryRes.data;
+            error = null;
+          } else {
+            console.error(`[Supabase] Profile lookup authentication retry error\nplayer: ${cleanUsername}\nerror: ${retryRes.error.message}`);
+            return null;
+          }
+        } else {
+          console.error(`[Supabase] Error looking up profile for ${cleanUsername}:`, error.message);
+          return null;
+        }
       }
 
       let profile = profiles && profiles.length > 0 ? profiles[0] : null;
@@ -116,7 +175,11 @@ class SupabaseService {
               .limit(1);
             profile = retryProfiles && retryProfiles[0];
           } else {
-            console.error(`[Supabase] Failed to create profile for ${cleanUsername}:`, createErr.message);
+            if (createErr.message && createErr.message.includes("JWT issued at future")) {
+              console.error(`[Supabase] Profile lookup authentication error\nplayer: ${cleanUsername}\nerror: ${createErr.message}`);
+            } else {
+              console.error(`[Supabase] Failed to create profile for ${cleanUsername}:`, createErr.message);
+            }
             return null;
           }
         } else {
@@ -246,7 +309,11 @@ class SupabaseService {
         }
       };
     } catch (err) {
-      console.error(`[Supabase] Exception in getOrCreatePlayer for ${cleanUsername}:`, err.message);
+      if (err.message && err.message.includes("JWT issued at future")) {
+        console.error(`[Supabase] Profile lookup authentication error\nplayer: ${cleanUsername}\nerror: ${err.message}`);
+      } else {
+        console.error(`[Supabase] Exception in getOrCreatePlayer for ${cleanUsername}:`, err.message);
+      }
       return null;
     }
   }
