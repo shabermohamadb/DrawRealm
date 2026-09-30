@@ -39,6 +39,8 @@ class Room {
    */
   constructor({ id, type = 1, lang = 0, category = "Random", mode = 0, slots = 8, rounds = 3, drawtime = 80, roomManager = null }) {
     this.id = id;
+    this.roomCode = id;
+    this.databaseId = null;
     this.type = type;
     this.category = category || "Random";
     this.roomManager = roomManager;
@@ -76,7 +78,8 @@ class Room {
       gameMode: this.settings[SETTINGS.WORDMODE] === 6 ? "Evolution" : "Classic",
       category: this.category,
       status: "waiting",
-      maxPlayers: this.settings[SETTINGS.SLOTS] || 8
+      maxPlayers: this.settings[SETTINGS.SLOTS] || 8,
+      room: this
     });
   }
 
@@ -228,11 +231,12 @@ class Room {
     this.players.set(playerId, player);
     if (isFirst) {
       this.ownerId = playerId;
-      db.updateRoomRecord(this.id, { hostPlayerId: playerId });
+      db.updateRoomRecord(this.id, { hostPlayerId: playerId }, this.databaseId);
     }
 
     db.addRoomPlayer({
       roomId: this.id,
+      databaseId: this.databaseId,
       playerId: playerId,
       playerName: cleanName,
       role: isFirst ? "host" : (isSpectator ? "spectator" : "player")
@@ -425,12 +429,12 @@ class Room {
         hostId: this.ownerId,
         hostName: remaining[0].name
       });
-      db.updateRoomRecord(this.id, { hostPlayerId: this.ownerId });
+      db.updateRoomRecord(this.id, { hostPlayerId: this.ownerId }, this.databaseId);
       this.onStateChange();
       return remaining[0];
     } else {
       this.ownerId = -1;
-      db.updateRoomRecord(this.id, { hostPlayerId: null });
+      db.updateRoomRecord(this.id, { hostPlayerId: null }, this.databaseId);
       this.onStateChange();
       return null;
     }
@@ -450,7 +454,7 @@ class Room {
 
     this.players.delete(playerId);
 
-    db.updateRoomPlayerLeft({ roomId: this.id, playerId });
+    db.updateRoomPlayerLeft({ roomId: this.id, databaseId: this.databaseId, playerId });
     this.onStateChange();
 
     // Broadcast player left (va = 2)
@@ -481,7 +485,7 @@ class Room {
     db.updateRoomRecord(this.id, {
       status: "closed",
       endedAt: Date.now()
-    });
+    }, this.databaseId);
     this.onStateChange();
   }
 
@@ -527,7 +531,7 @@ class Room {
     if (settingIndex === "category" || settingIndex === 8) {
       this.category = String(value || "Random").trim();
       this.broadcastCustom("evolution:category_changed", { category: this.category });
-      db.updateRoomRecord(this.id, { category: this.category });
+      db.updateRoomRecord(this.id, { category: this.category }, this.databaseId);
       this.onStateChange();
       return;
     }
@@ -549,9 +553,9 @@ class Room {
       for (const p of this.players.values()) {
         this.evolution.syncPlayerState(p);
       }
-      db.updateRoomRecord(this.id, { gameMode: parsedVal === 6 ? "Evolution" : "Classic" });
+      db.updateRoomRecord(this.id, { gameMode: parsedVal === 6 ? "Evolution" : "Classic" }, this.databaseId);
     } else if (sIdx === SETTINGS.SLOTS) {
-      db.updateRoomRecord(this.id, { maxPlayers: parsedVal });
+      db.updateRoomRecord(this.id, { maxPlayers: parsedVal }, this.databaseId);
     }
 
     this.onStateChange();

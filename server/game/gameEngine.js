@@ -114,7 +114,7 @@ class GameEngine {
     db.updateRoomRecord(this.room.id, {
       status: "in_game",
       startedAt: this.gameStartedAt
-    });
+    }, this.room.databaseId);
     if (typeof this.room.onStateChange === "function") {
       this.room.onStateChange();
     }
@@ -669,7 +669,7 @@ class GameEngine {
     db.updateRoomRecord(this.room.id, {
       status: "finished",
       endedAt: Date.now()
-    });
+    }, this.room.databaseId);
     if (typeof this.room.onStateChange === "function") {
       this.room.onStateChange();
     }
@@ -703,7 +703,7 @@ class GameEngine {
 
     db.updateRoomRecord(this.room.id, {
       status: "waiting"
-    });
+    }, this.room.databaseId);
     if (typeof this.room.onStateChange === "function") {
       this.room.onStateChange();
     }

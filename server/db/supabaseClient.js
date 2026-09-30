@@ -467,31 +467,56 @@ class SupabaseService {
 
   async createRoomRecord(roomData) {
     if (!this.isConfigured || !this.client) return null;
+    const roomCode = roomData.roomCode || roomData.id;
+    if (!roomCode) {
+      console.warn("[Supabase] createRoomRecord failed: Missing roomCode");
+      return null;
+    }
+
     try {
+      const insertPayload = {
+        room_code: String(roomCode).slice(0, 20),
+        room_type: roomData.roomType || "public",
+        host_player_id: roomData.hostPlayerId ? String(roomData.hostPlayerId) : null,
+        game_mode: roomData.gameMode || "Classic",
+        category: roomData.category || "Random",
+        status: roomData.status || "waiting",
+        max_players: roomData.maxPlayers || 8,
+        created_at: roomData.createdAt || new Date().toISOString()
+      };
+
+      // Only pass id if a genuine valid UUID was explicitly supplied
+      if (isValidUUID(roomData.databaseId)) {
+        insertPayload.id = roomData.databaseId;
+      } else if (isValidUUID(roomData.id)) {
+        insertPayload.id = roomData.id;
+      }
+
       const { data, error } = await this.client
         .from("rooms")
-        .upsert({
-          id: roomData.id,
-          room_code: roomData.roomCode || roomData.id,
-          room_type: roomData.roomType || "public",
-          host_player_id: roomData.hostPlayerId ? String(roomData.hostPlayerId) : null,
-          game_mode: roomData.gameMode || "Classic",
-          category: roomData.category || "Random",
-          status: roomData.status || "waiting",
-          max_players: roomData.maxPlayers || 8,
-          created_at: roomData.createdAt || new Date().toISOString()
-        }, { onConflict: "id" });
-      if (error && !error.message.includes("does not exist") && !error.message.includes("relation")) {
-        console.warn("[Supabase] createRoomRecord error:", error.message);
+        .insert(insertPayload)
+        .select("id, room_code, status, room_type")
+        .single();
+
+      if (error) {
+        console.warn(`[Supabase] createRoomRecord failed\nroomCode: ${insertPayload.room_code}\nerrorCode: ${error.code || "UNKNOWN"}\nerrorMessage: ${error.message}`);
+        return null;
       }
+
       return data;
     } catch (err) {
+      console.error("[Supabase] createRoomRecord unexpected error:", err.message);
       return null;
     }
   }
 
-  async updateRoomRecord(id, updates) {
+  async updateRoomRecord(databaseId, updates) {
     if (!this.isConfigured || !this.client) return null;
+    if (!isValidUUID(databaseId)) {
+      // NEVER send a room code against the UUID id column
+      return null;
+    }
+
     try {
       const payload = {};
       if (updates.status !== undefined) payload.status = updates.status;
@@ -505,7 +530,8 @@ class SupabaseService {
       const { data, error } = await this.client
         .from("rooms")
         .update(payload)
-        .eq("id", id);
+        .eq("id", databaseId);
+
       if (error && !error.message.includes("does not exist") && !error.message.includes("relation")) {
         console.warn("[Supabase] updateRoomRecord error:", error.message);
       }
@@ -515,20 +541,67 @@ class SupabaseService {
     }
   }
 
-  async addRoomPlayer({ roomId, playerId, playerName, role }) {
-    if (!this.isConfigured || !this.client) return null;
+  async getRoomRecordByCode(roomCode) {
+    if (!this.isConfigured || !this.client || !roomCode) return null;
     try {
       const { data, error } = await this.client
-        .from("room_players")
-        .upsert({
-          room_id: roomId,
-          player_id: String(playerId),
-          player_name: playerName,
-          role: role || "player",
-          joined_at: new Date().toISOString(),
-          is_active: true
-        });
+        .from("rooms")
+        .select("*")
+        .eq("room_code", String(roomCode).trim())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[Supabase] getRoomRecordByCode error for ${roomCode}:`, error.message);
+        return null;
+      }
       return data;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async addRoomPlayer({ roomId, playerId, role }) {
+    if (!this.isConfigured || !this.client) return null;
+    if (!isValidUUID(roomId)) {
+      return null;
+    }
+
+    try {
+      const pIdStr = String(playerId);
+      const playerRole = role || "player";
+
+      const { data: existing } = await this.client
+        .from("room_players")
+        .select("id")
+        .match({ room_id: roomId, player_id: pIdStr })
+        .maybeSingle();
+
+      if (existing) {
+        const { data, error } = await this.client
+          .from("room_players")
+          .update({
+            role: playerRole,
+            is_active: true,
+            left_at: null
+          })
+          .eq("id", existing.id);
+        if (error) console.warn("[Supabase] addRoomPlayer update error:", error.message);
+        return data;
+      } else {
+        const { data, error } = await this.client
+          .from("room_players")
+          .insert({
+            room_id: roomId,
+            player_id: pIdStr,
+            role: playerRole,
+            is_active: true,
+            joined_at: new Date().toISOString()
+          });
+        if (error) console.warn("[Supabase] addRoomPlayer insert error:", error.message);
+        return data;
+      }
     } catch (err) {
       return null;
     }
@@ -536,6 +609,10 @@ class SupabaseService {
 
   async updateRoomPlayerLeft({ roomId, playerId, leftAt }) {
     if (!this.isConfigured || !this.client) return null;
+    if (!isValidUUID(roomId)) {
+      return null;
+    }
+
     try {
       const { data, error } = await this.client
         .from("room_players")
@@ -544,6 +621,8 @@ class SupabaseService {
           left_at: leftAt || new Date().toISOString()
         })
         .match({ room_id: roomId, player_id: String(playerId) });
+
+      if (error) console.warn("[Supabase] updateRoomPlayerLeft error:", error.message);
       return data;
     } catch (err) {
       return null;
@@ -551,5 +630,13 @@ class SupabaseService {
   }
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidUUID(value) {
+  return typeof value === "string" && UUID_REGEX.test(value);
+}
+
 const supabaseService = new SupabaseService();
+supabaseService.isValidUUID = isValidUUID;
 module.exports = supabaseService;
+

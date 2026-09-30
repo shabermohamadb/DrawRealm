@@ -499,15 +499,28 @@ io.on("connection", (socket) => {
   });
 });
 
+let isShuttingDown = false;
+
 // Graceful Shutdown Handler
 function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
   console.log(`\nReceived ${signal}. Shutting down DrawRealm gracefully...`);
 
-  // Stop room GC
-  roomManager.destroy();
+  // Stop room GC & teardown active rooms
+  try {
+    roomManager.destroy();
+  } catch (err) {
+    console.error("[Shutdown] Error during roomManager.destroy:", err.message);
+  }
 
   // Close active sockets with notification
-  io.emit("drawrealm:server_shutdown", { message: "Server is restarting for an update." });
+  try {
+    io.emit("drawrealm:server_shutdown", { message: "Server is restarting for an update." });
+  } catch (err) {
+    // Ignore socket emit errors during shutdown
+  }
 
   // Close HTTP & Socket server
   server.close(() => {

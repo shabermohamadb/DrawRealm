@@ -12,6 +12,7 @@ const supabaseService = require("./supabaseClient");
 class DatabaseManager {
   constructor(dbPath = config.DATABASE_URL) {
     this.dbPath = dbPath;
+    this.roomCodeToDbId = new Map();
     this.init();
   }
 
@@ -182,6 +183,7 @@ class DatabaseManager {
     `);
 
     this.stmtGetRoom = this.db.prepare("SELECT * FROM rooms WHERE id = ?");
+    this.stmtGetRoomByCode = this.db.prepare("SELECT * FROM rooms WHERE room_code = ?");
 
     this.stmtUpsertRoomPlayer = this.db.prepare(`
       INSERT INTO room_players (room_id, player_id, player_name, role, joined_at, is_active)
@@ -479,14 +481,14 @@ class DatabaseManager {
     }
   }
 
-  createRoomRecord({ id, roomCode, roomType, hostPlayerId = null, gameMode = "Classic", category = "Random", status = "waiting", maxPlayers = 8 }) {
+  createRoomRecord({ id, roomCode, roomType, hostPlayerId = null, gameMode = "Classic", category = "Random", status = "waiting", maxPlayers = 8, room = null }) {
     try {
       const now = Date.now();
-      this.stmtInsertRoom.run(id, roomCode || id, roomType || "public", hostPlayerId, String(gameMode), String(category), status, maxPlayers, now, null, null);
+      const code = roomCode || id;
+      this.stmtInsertRoom.run(id, code, roomType || "public", hostPlayerId, String(gameMode), String(category), status, maxPlayers, now, null, null);
       if (supabaseService.isConfigured) {
         supabaseService.createRoomRecord({
-          id,
-          roomCode: roomCode || id,
+          roomCode: code,
           roomType: roomType || "public",
           hostPlayerId,
           gameMode: String(gameMode),
@@ -494,14 +496,32 @@ class DatabaseManager {
           status,
           maxPlayers,
           createdAt: new Date(now).toISOString()
-        }).catch(() => {});
+        }).then(record => {
+          if (record && record.id) {
+            this.roomCodeToDbId.set(code, record.id);
+            this.roomCodeToDbId.set(id, record.id);
+            if (room) {
+              room.databaseId = record.id;
+              // Backfill any players who already joined this room while Supabase was inserting
+              for (const player of room.players.values()) {
+                supabaseService.addRoomPlayer({
+                  roomId: record.id,
+                  playerId: player.id,
+                  role: player.id === room.ownerId ? "host" : (player.spectator ? "spectator" : "player")
+                }).catch(() => {});
+              }
+            }
+          }
+        }).catch(err => {
+          console.warn(`[Database] Supabase createRoomRecord failed for room ${code}:`, err.message);
+        });
       }
     } catch (err) {
       console.error(`[Database] Error creating room record ${id}:`, err.message);
     }
   }
 
-  updateRoomRecord(id, updates = {}) {
+  updateRoomRecord(id, updates = {}, databaseId = null) {
     try {
       const existing = this.getRoomRecord(id);
       if (!existing) return;
@@ -515,7 +535,17 @@ class DatabaseManager {
 
       this.stmtUpdateRoomRecord.run(status, startedAt, endedAt, hostPlayerId, String(category), String(gameMode), maxPlayers, id);
       if (supabaseService.isConfigured) {
-        supabaseService.updateRoomRecord(id, updates).catch(() => {});
+        const dbId = databaseId || this.roomCodeToDbId.get(id);
+        if (dbId) {
+          supabaseService.updateRoomRecord(dbId, updates).catch(() => {});
+        } else {
+          supabaseService.getRoomRecordByCode(id).then(rec => {
+            if (rec && rec.id) {
+              this.roomCodeToDbId.set(id, rec.id);
+              supabaseService.updateRoomRecord(rec.id, updates).catch(() => {});
+            }
+          }).catch(() => {});
+        }
       }
     } catch (err) {
       console.error(`[Database] Error updating room record ${id}:`, err.message);
@@ -531,24 +561,53 @@ class DatabaseManager {
     }
   }
 
-  addRoomPlayer({ roomId, playerId, playerName, role = "player" }) {
+  getRoomRecordByCode(roomCode) {
+    try {
+      return this.stmtGetRoomByCode.get(roomCode) || null;
+    } catch (err) {
+      console.error(`[Database] Error getting room record by code ${roomCode}:`, err.message);
+      return null;
+    }
+  }
+
+  addRoomPlayer({ roomId, databaseId = null, playerId, playerName, role = "player" }) {
     try {
       const now = Date.now();
       this.stmtUpsertRoomPlayer.run(roomId, playerId, playerName, role, now);
       if (supabaseService.isConfigured) {
-        supabaseService.addRoomPlayer({ roomId, playerId, playerName, role }).catch(() => {});
+        const dbId = databaseId || this.roomCodeToDbId.get(roomId);
+        if (dbId) {
+          supabaseService.addRoomPlayer({ roomId: dbId, playerId, role }).catch(() => {});
+        } else {
+          supabaseService.getRoomRecordByCode(roomId).then(rec => {
+            if (rec && rec.id) {
+              this.roomCodeToDbId.set(roomId, rec.id);
+              supabaseService.addRoomPlayer({ roomId: rec.id, playerId, role }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
       }
     } catch (err) {
       console.error(`[Database] Error adding room player ${playerName} in ${roomId}:`, err.message);
     }
   }
 
-  updateRoomPlayerLeft({ roomId, playerId }) {
+  updateRoomPlayerLeft({ roomId, databaseId = null, playerId }) {
     try {
       const now = Date.now();
       this.stmtUpdateRoomPlayerLeft.run(now, roomId, playerId);
       if (supabaseService.isConfigured) {
-        supabaseService.updateRoomPlayerLeft({ roomId, playerId, leftAt: new Date(now).toISOString() }).catch(() => {});
+        const dbId = databaseId || this.roomCodeToDbId.get(roomId);
+        if (dbId) {
+          supabaseService.updateRoomPlayerLeft({ roomId: dbId, playerId, leftAt: new Date(now).toISOString() }).catch(() => {});
+        } else {
+          supabaseService.getRoomRecordByCode(roomId).then(rec => {
+            if (rec && rec.id) {
+              this.roomCodeToDbId.set(roomId, rec.id);
+              supabaseService.updateRoomPlayerLeft({ roomId: rec.id, playerId, leftAt: new Date(now).toISOString() }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
       }
     } catch (err) {
       console.error(`[Database] Error updating room player left for ${playerId} in ${roomId}:`, err.message);

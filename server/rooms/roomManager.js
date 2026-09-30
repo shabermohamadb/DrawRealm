@@ -15,6 +15,7 @@ class RoomManager {
     this.socketMap = new Map(); // socket.id -> { room, player }
     this.tokenMap = new Map(); // reconnectToken -> { room, player }
     this.io = null;
+    this.isDestroyed = false;
 
     // Start background garbage collector for stale rooms & expired sessions
     this.gcInterval = setInterval(() => {
@@ -324,6 +325,7 @@ class RoomManager {
    * Periodic garbage collection of empty/abandoned rooms
    */
   collectGarbage() {
+    if (this.isDestroyed) return;
     db.cleanupExpiredSessions();
 
     const now = Date.now();
@@ -423,6 +425,40 @@ class RoomManager {
       }
     }
     return list;
+  }
+
+  /**
+   * Idempotent teardown of RoomManager resources and all active rooms on server shutdown
+   */
+  destroy() {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+
+    console.log("[RoomManager] Shutting down RoomManager and cleaning up active rooms...");
+
+    if (this.gcInterval) {
+      clearInterval(this.gcInterval);
+      this.gcInterval = null;
+    }
+
+    for (const [roomId, room] of this.rooms.entries()) {
+      try {
+        for (const player of room.players.values()) {
+          if (player.disconnectTimeout) {
+            clearTimeout(player.disconnectTimeout);
+            player.disconnectTimeout = null;
+          }
+        }
+        room.destroy();
+      } catch (err) {
+        console.error(`[RoomManager] Error destroying room ${roomId}:`, err.message);
+      }
+    }
+
+    this.rooms.clear();
+    this.socketMap.clear();
+    this.tokenMap.clear();
+    console.log("[RoomManager] RoomManager destroyed cleanly.");
   }
 }
 
