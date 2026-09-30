@@ -14,11 +14,27 @@ class RoomManager {
     this.rooms = new Map(); // roomId -> Room
     this.socketMap = new Map(); // socket.id -> { room, player }
     this.tokenMap = new Map(); // reconnectToken -> { room, player }
+    this.io = null;
 
     // Start background garbage collector for stale rooms & expired sessions
     this.gcInterval = setInterval(() => {
       this.collectGarbage();
     }, 30000);
+  }
+
+  setIO(io) {
+    this.io = io;
+  }
+
+  /**
+   * Broadcasts updated public rooms list to all connected clients in real-time
+   */
+  broadcastPublicRoomsUpdated() {
+    if (this.io) {
+      const publicRooms = this.getPublicRooms();
+      this.io.emit("public_rooms_updated", publicRooms);
+      this.io.emit("PUBLIC_ROOMS_UPDATED", publicRooms);
+    }
   }
 
   /**
@@ -35,12 +51,23 @@ class RoomManager {
   /**
    * Creates a new private room
    */
-  createPrivateRoom(lang = 0) {
+  createPrivateRoom(lang = 0, options = {}) {
     if (this.rooms.size >= config.MAX_ROOMS) {
       throw new Error("Server room limit reached. Please try again later.");
     }
     const id = this.generateRoomId();
-    const room = new Room({ id, type: 1, lang });
+    const parsedLang = (typeof lang === "number" && !isNaN(lang)) ? lang : parseInt(lang, 10) || 0;
+    const room = new Room({
+      id,
+      type: 1,
+      lang: parsedLang,
+      category: options.category || "Random",
+      mode: options.mode !== undefined ? options.mode : 0,
+      slots: options.slots !== undefined ? options.slots : 8,
+      rounds: options.rounds !== undefined ? options.rounds : 3,
+      drawtime: options.drawtime !== undefined ? options.drawtime : 80,
+      roomManager: this
+    });
     this.rooms.set(id, room);
     console.log(`[RoomManager] Created private room: ${id}`);
     return room;
@@ -49,27 +76,38 @@ class RoomManager {
   /**
    * Creates a new public room explicitly
    */
-  createPublicRoom(lang = 0) {
+  createPublicRoom(lang = 0, options = {}) {
     if (this.rooms.size >= config.MAX_ROOMS) {
       throw new Error("Server room limit reached. Please try again later.");
     }
     const id = this.generateRoomId();
     const parsedLang = (typeof lang === "number" && !isNaN(lang)) ? lang : parseInt(lang, 10) || 0;
-    const room = new Room({ id, type: 0, lang: parsedLang });
+    const room = new Room({
+      id,
+      type: 0,
+      lang: parsedLang,
+      category: options.category || "Random",
+      mode: options.mode !== undefined ? options.mode : 0,
+      slots: options.slots !== undefined ? options.slots : 8,
+      rounds: options.rounds !== undefined ? options.rounds : 3,
+      drawtime: options.drawtime !== undefined ? options.drawtime : 80,
+      roomManager: this
+    });
     this.rooms.set(id, room);
     console.log(`[RoomManager] Created public room: ${id}`);
+    this.broadcastPublicRoomsUpdated();
     return room;
   }
 
   /**
    * Finds an available public room or creates a new one
    */
-  findOrCreatePublicRoom(lang = 0, playerName = null) {
+  findOrCreatePublicRoom(lang = 0, playerName = null, category = "Random") {
     const parsedLang = parseInt(lang, 10) || 0;
 
-    // Search for public room with open slots and no duplicate name
+    // Search for public room with open slots, in lobby state, and no duplicate name
     for (const room of this.rooms.values()) {
-      if (room.type === 0 && room.settings[SETTINGS.LANG] === parsedLang) {
+      if (room.type === 0 && room.settings[SETTINGS.LANG] === parsedLang && room.game && room.game.state === STATES.LOBBY) {
         const slots = parseInt(room.settings[SETTINGS.SLOTS], 10) || 8;
         if (room.getActivePlayers().length < slots) {
           if (!playerName || !room.hasPlayerName(playerName)) {
@@ -79,7 +117,7 @@ class RoomManager {
       }
     }
 
-    return this.createPublicRoom(parsedLang);
+    return this.createPublicRoom(parsedLang, { category });
   }
 
   /**
@@ -279,6 +317,7 @@ class RoomManager {
       }
     }
     this.rooms.delete(roomId);
+    this.broadcastPublicRoomsUpdated();
   }
 
   /**
@@ -343,14 +382,25 @@ class RoomManager {
       if (room.type === 0) {
         const modeId = parseInt(room.settings[SETTINGS.WORDMODE], 10) || 0;
         const state = room.game ? room.game.state : STATES.LOBBY;
-        const status = state === STATES.LOBBY ? "Waiting" : (state === STATES.GAME_OVER ? "Game Over" : "Playing");
         const activeCount = room.getActivePlayers().length;
         const maxSlots = parseInt(room.settings[SETTINGS.SLOTS], 10) || 8;
+        const isStarted = state !== STATES.LOBBY;
+        const isFull = activeCount >= maxSlots;
+
+        let status = "Waiting";
+        if (isStarted) {
+          status = state === STATES.GAME_OVER ? "Game Over" : "In Game";
+        } else if (isFull) {
+          status = "Full";
+        }
+
+        const hostPlayer = room.players.get(room.ownerId);
 
         list.push({
           id: room.id,
           code: room.id,
           type: room.type,
+          roomType: "public",
           players: activeCount,
           playerCount: activeCount,
           maxPlayers: maxSlots,
@@ -358,7 +408,13 @@ class RoomManager {
           mode: modeId,
           gameMode: MODE_NAMES[modeId] || "Classic",
           modeName: MODE_NAMES[modeId] || "Classic",
+          category: room.category || "Random",
           status: status,
+          isStarted: isStarted,
+          isFull: isFull,
+          canJoin: !isStarted && !isFull,
+          hostPlayerId: room.ownerId,
+          hostName: hostPlayer ? hostPlayer.name : "Host",
           round: Math.max(1, room.game ? room.game.currentRound : 1),
           totalRounds: parseInt(room.settings[SETTINGS.ROUNDS], 10) || 3,
           lang: parseInt(room.settings[SETTINGS.LANG], 10) || 0,

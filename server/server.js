@@ -33,6 +33,9 @@ const io = new Server(server, {
   maxHttpBufferSize: config.RATE_LIMITS.MAX_PAYLOAD_BYTES
 });
 
+// Attach io to roomManager for real-time broadcasts across all clients
+roomManager.setIO(io);
+
 // Production Security Headers & CORS
 app.use(securityHeadersMiddleware);
 
@@ -111,7 +114,7 @@ io.on("connection", (socket) => {
   console.log(`[Socket.IO] Client connected: ${socket.id} (transport: ${socket.conn.transport.name}, IP: ${clientIp})`);
 
   // 1. Login & Matchmaking handshake
-  socket.on("login", (data = {}) => {
+  const handleLogin = (data = {}) => {
     try {
       console.log(`[Socket.IO] Login packet from ${socket.id}: create=${data.create}, join=${data.join}, name=${data.name}`);
       // Payload validation
@@ -159,22 +162,17 @@ io.on("connection", (socket) => {
 
       if (isCreate) {
         const isPublic = data.roomType === "public" || data.roomType === 0 || data.type === 0;
+        const roomOpts = {
+          category: data.category,
+          mode: data.mode !== undefined ? parseInt(data.mode, 10) : 0,
+          slots: data.slots !== undefined ? Math.min(20, Math.max(2, parseInt(data.slots, 10) || 8)) : 8,
+          rounds: data.rounds !== undefined ? Math.min(10, Math.max(1, parseInt(data.rounds, 10) || 3)) : 3,
+          drawtime: data.drawtime !== undefined ? Math.min(180, Math.max(30, parseInt(data.drawtime, 10) || 80)) : 80
+        };
         if (isPublic) {
-          room = roomManager.createPublicRoom(data.lang);
+          room = roomManager.createPublicRoom(data.lang, roomOpts);
         } else {
-          room = roomManager.createPrivateRoom(data.lang);
-        }
-        if (data.mode !== undefined) {
-          room.settings[SETTINGS.WORDMODE] = parseInt(data.mode) || 0;
-        }
-        if (data.slots !== undefined) {
-          room.settings[SETTINGS.SLOTS] = Math.min(20, Math.max(2, parseInt(data.slots) || 8));
-        }
-        if (data.rounds !== undefined) {
-          room.settings[SETTINGS.ROUNDS] = Math.min(10, Math.max(1, parseInt(data.rounds) || 3));
-        }
-        if (data.drawtime !== undefined) {
-          room.settings[SETTINGS.DRAWTIME] = Math.min(180, Math.max(30, parseInt(data.drawtime) || 80));
+          room = roomManager.createPrivateRoom(data.lang, roomOpts);
         }
         if (data.customWords) {
           room.settings[SETTINGS.CUSTOM_WORDS] = rateLimiter.sanitizeText(String(data.customWords), 2000);
@@ -188,6 +186,15 @@ io.on("connection", (socket) => {
         if (!room) {
           // Room not found (joinerr 1)
           socket.emit("joinerr", 1);
+          return;
+        }
+
+        // Room already started check
+        if (room.isStarted && !data.spectator) {
+          socket.emit("joinerr", {
+            code: "ROOM_ALREADY_STARTED",
+            message: "This game has already started. Joins are closed."
+          });
           return;
         }
 
@@ -208,7 +215,7 @@ io.on("connection", (socket) => {
         }
       } else {
         // Quick play / Join public room
-        room = roomManager.findOrCreatePublicRoom(data.lang, cleanName);
+        room = roomManager.findOrCreatePublicRoom(data.lang, cleanName, { category: data.category });
       }
 
       // Clean up any existing session on this socket before joining/creating to prevent ghost/duplicate sessions
@@ -231,7 +238,47 @@ io.on("connection", (socket) => {
       console.error("Error during login:", err);
       socket.emit("joinerr", 0);
     }
-  });
+  };
+
+  socket.on("login", handleLogin);
+
+  // Explicit Room Management Socket Events
+  const handleGetPublicRooms = (cb) => {
+    const rooms = roomManager.getPublicRooms();
+    socket.emit("public_rooms_updated", rooms);
+    socket.emit("PUBLIC_ROOMS_UPDATED", rooms);
+    if (typeof cb === "function") cb(rooms);
+  };
+  socket.on("get_public_rooms", handleGetPublicRooms);
+  socket.on("GET_PUBLIC_ROOMS", handleGetPublicRooms);
+
+  const handleCreateRoom = (data = {}) => {
+    handleLogin({ ...data, create: 1 });
+  };
+  socket.on("create_room", handleCreateRoom);
+  socket.on("CREATE_ROOM", handleCreateRoom);
+
+  const handleJoinRoom = (data = {}) => {
+    const roomId = data.roomId || data.join || data.code;
+    handleLogin({ ...data, join: roomId, create: 0 });
+  };
+  socket.on("join_room", handleJoinRoom);
+  socket.on("JOIN_ROOM", handleJoinRoom);
+
+  const handleLeaveRoom = (cb) => {
+    const session = roomManager.getSocketSession(socket);
+    if (session && session.room) {
+      if (session.player) {
+        session.room.removePlayer(session.player.id);
+      }
+      roomManager.unbindSocket(socket.id);
+    }
+    socket.emit("left_room", { ok: true });
+    socket.emit("LEAVE_ROOM_SUCCESS", { ok: true });
+    if (typeof cb === "function") cb({ ok: true });
+  };
+  socket.on("leave_room", handleLeaveRoom);
+  socket.on("LEAVE_ROOM", handleLeaveRoom);
 
   // 2. Incoming game data packets
   socket.on("data", (packet = {}) => {
@@ -320,8 +367,8 @@ io.on("connection", (socket) => {
         // Room Settings Update
         case 12:
           if (data && data.id !== undefined) {
-            const sId = parseInt(data.id, 10);
-            if (!isNaN(sId)) {
+            const sId = (data.id === "category" || data.id === 8) ? data.id : parseInt(data.id, 10);
+            if (sId === "category" || !isNaN(sId)) {
               room.updateSetting(sId, data.val, player);
             }
           }

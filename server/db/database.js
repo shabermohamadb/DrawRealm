@@ -60,8 +60,36 @@ class DatabaseManager {
         expires_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS rooms (
+        id TEXT PRIMARY KEY,
+        room_code TEXT NOT NULL,
+        room_type TEXT NOT NULL,
+        host_player_id INTEGER,
+        game_mode TEXT NOT NULL,
+        category TEXT NOT NULL,
+        status TEXT NOT NULL,
+        max_players INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        started_at INTEGER,
+        ended_at INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS room_players (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        room_id TEXT NOT NULL,
+        player_id INTEGER NOT NULL,
+        player_name TEXT NOT NULL,
+        role TEXT DEFAULT 'player',
+        joined_at INTEGER NOT NULL,
+        left_at INTEGER,
+        is_active INTEGER DEFAULT 1,
+        UNIQUE(room_id, player_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_reconnect_expires ON reconnect_sessions(expires_at);
       CREATE INDEX IF NOT EXISTS idx_matches_ended ON matches(ended_at);
+      CREATE INDEX IF NOT EXISTS idx_rooms_status ON rooms(status);
+      CREATE INDEX IF NOT EXISTS idx_room_players_room ON room_players(room_id);
     `);
 
     // Safe migration: Add power_points column if not present in existing table
@@ -107,6 +135,50 @@ class DatabaseManager {
     this.stmtGetSession = this.db.prepare("SELECT * FROM reconnect_sessions WHERE token = ? AND expires_at > ?");
     this.stmtDeleteSession = this.db.prepare("DELETE FROM reconnect_sessions WHERE token = ?");
     this.stmtCleanExpiredSessions = this.db.prepare("DELETE FROM reconnect_sessions WHERE expires_at <= ?");
+
+    this.stmtInsertRoom = this.db.prepare(`
+      INSERT INTO rooms (id, room_code, room_type, host_player_id, game_mode, category, status, max_players, created_at, started_at, ended_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        host_player_id = excluded.host_player_id,
+        game_mode = excluded.game_mode,
+        category = excluded.category,
+        status = excluded.status,
+        max_players = excluded.max_players
+    `);
+
+    this.stmtUpdateRoomRecord = this.db.prepare(`
+      UPDATE rooms SET
+        status = ?,
+        started_at = ?,
+        ended_at = ?,
+        host_player_id = ?,
+        category = ?,
+        game_mode = ?,
+        max_players = ?
+      WHERE id = ?
+    `);
+
+    this.stmtGetRoom = this.db.prepare("SELECT * FROM rooms WHERE id = ?");
+
+    this.stmtUpsertRoomPlayer = this.db.prepare(`
+      INSERT INTO room_players (room_id, player_id, player_name, role, joined_at, is_active)
+      VALUES (?, ?, ?, ?, ?, 1)
+      ON CONFLICT(room_id, player_id) DO UPDATE SET
+        player_name = excluded.player_name,
+        role = excluded.role,
+        is_active = 1,
+        left_at = NULL
+    `);
+
+    this.stmtUpdateRoomPlayerLeft = this.db.prepare(`
+      UPDATE room_players SET
+        is_active = 0,
+        left_at = ?
+      WHERE room_id = ? AND player_id = ?
+    `);
+
+    this.stmtGetRoomPlayers = this.db.prepare("SELECT * FROM room_players WHERE room_id = ?");
 
     // Migrate from legacy JSON if it exists
     this.migrateLegacyJson();
@@ -337,6 +409,91 @@ class DatabaseManager {
   deleteReconnectSession(token) {
     if (token) {
       this.stmtDeleteSession.run(token);
+    }
+  }
+
+  createRoomRecord({ id, roomCode, roomType, hostPlayerId = null, gameMode = "Classic", category = "Random", status = "waiting", maxPlayers = 8 }) {
+    try {
+      const now = Date.now();
+      this.stmtInsertRoom.run(id, roomCode || id, roomType || "public", hostPlayerId, String(gameMode), String(category), status, maxPlayers, now, null, null);
+      if (supabaseService.isConfigured) {
+        supabaseService.createRoomRecord({
+          id,
+          roomCode: roomCode || id,
+          roomType: roomType || "public",
+          hostPlayerId,
+          gameMode: String(gameMode),
+          category: String(category),
+          status,
+          maxPlayers,
+          createdAt: new Date(now).toISOString()
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`[Database] Error creating room record ${id}:`, err.message);
+    }
+  }
+
+  updateRoomRecord(id, updates = {}) {
+    try {
+      const existing = this.getRoomRecord(id);
+      if (!existing) return;
+      const status = updates.status !== undefined ? updates.status : existing.status;
+      const startedAt = updates.startedAt !== undefined ? updates.startedAt : existing.started_at;
+      const endedAt = updates.endedAt !== undefined ? updates.endedAt : existing.ended_at;
+      const hostPlayerId = updates.hostPlayerId !== undefined ? updates.hostPlayerId : existing.host_player_id;
+      const category = updates.category !== undefined ? updates.category : existing.category;
+      const gameMode = updates.gameMode !== undefined ? updates.gameMode : existing.game_mode;
+      const maxPlayers = updates.maxPlayers !== undefined ? updates.maxPlayers : existing.max_players;
+
+      this.stmtUpdateRoomRecord.run(status, startedAt, endedAt, hostPlayerId, String(category), String(gameMode), maxPlayers, id);
+      if (supabaseService.isConfigured) {
+        supabaseService.updateRoomRecord(id, updates).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`[Database] Error updating room record ${id}:`, err.message);
+    }
+  }
+
+  getRoomRecord(id) {
+    try {
+      return this.stmtGetRoom.get(id) || null;
+    } catch (err) {
+      console.error(`[Database] Error getting room record ${id}:`, err.message);
+      return null;
+    }
+  }
+
+  addRoomPlayer({ roomId, playerId, playerName, role = "player" }) {
+    try {
+      const now = Date.now();
+      this.stmtUpsertRoomPlayer.run(roomId, playerId, playerName, role, now);
+      if (supabaseService.isConfigured) {
+        supabaseService.addRoomPlayer({ roomId, playerId, playerName, role }).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`[Database] Error adding room player ${playerName} in ${roomId}:`, err.message);
+    }
+  }
+
+  updateRoomPlayerLeft({ roomId, playerId }) {
+    try {
+      const now = Date.now();
+      this.stmtUpdateRoomPlayerLeft.run(now, roomId, playerId);
+      if (supabaseService.isConfigured) {
+        supabaseService.updateRoomPlayerLeft({ roomId, playerId, leftAt: new Date(now).toISOString() }).catch(() => {});
+      }
+    } catch (err) {
+      console.error(`[Database] Error updating room player left for ${playerId} in ${roomId}:`, err.message);
+    }
+  }
+
+  getRoomPlayers(roomId) {
+    try {
+      return this.stmtGetRoomPlayers.all(roomId) || [];
+    } catch (err) {
+      console.error(`[Database] Error getting room players for ${roomId}:`, err.message);
+      return [];
     }
   }
 

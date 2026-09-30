@@ -464,6 +464,91 @@ class SupabaseService {
       return null;
     }
   }
+
+  async createRoomRecord(roomData) {
+    if (!this.isConfigured || !this.client) return null;
+    try {
+      const { data, error } = await this.client
+        .from("rooms")
+        .upsert({
+          id: roomData.id,
+          room_code: roomData.roomCode || roomData.id,
+          room_type: roomData.roomType || "public",
+          host_player_id: roomData.hostPlayerId ? String(roomData.hostPlayerId) : null,
+          game_mode: roomData.gameMode || "Classic",
+          category: roomData.category || "Random",
+          status: roomData.status || "waiting",
+          max_players: roomData.maxPlayers || 8,
+          created_at: roomData.createdAt || new Date().toISOString()
+        }, { onConflict: "id" });
+      if (error && !error.message.includes("does not exist") && !error.message.includes("relation")) {
+        console.warn("[Supabase] createRoomRecord error:", error.message);
+      }
+      return data;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async updateRoomRecord(id, updates) {
+    if (!this.isConfigured || !this.client) return null;
+    try {
+      const payload = {};
+      if (updates.status !== undefined) payload.status = updates.status;
+      if (updates.startedAt !== undefined) payload.started_at = new Date(updates.startedAt).toISOString();
+      if (updates.endedAt !== undefined) payload.ended_at = new Date(updates.endedAt).toISOString();
+      if (updates.category !== undefined) payload.category = updates.category;
+      if (updates.gameMode !== undefined) payload.game_mode = updates.gameMode;
+      if (updates.maxPlayers !== undefined) payload.max_players = updates.maxPlayers;
+      if (updates.hostPlayerId !== undefined) payload.host_player_id = updates.hostPlayerId ? String(updates.hostPlayerId) : null;
+
+      const { data, error } = await this.client
+        .from("rooms")
+        .update(payload)
+        .eq("id", id);
+      if (error && !error.message.includes("does not exist") && !error.message.includes("relation")) {
+        console.warn("[Supabase] updateRoomRecord error:", error.message);
+      }
+      return data;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async addRoomPlayer({ roomId, playerId, playerName, role }) {
+    if (!this.isConfigured || !this.client) return null;
+    try {
+      const { data, error } = await this.client
+        .from("room_players")
+        .upsert({
+          room_id: roomId,
+          player_id: String(playerId),
+          player_name: playerName,
+          role: role || "player",
+          joined_at: new Date().toISOString(),
+          is_active: true
+        });
+      return data;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async updateRoomPlayerLeft({ roomId, playerId, leftAt }) {
+    if (!this.isConfigured || !this.client) return null;
+    try {
+      const { data, error } = await this.client
+        .from("room_players")
+        .update({
+          is_active: false,
+          left_at: leftAt || new Date().toISOString()
+        })
+        .match({ room_id: roomId, player_id: String(playerId) });
+      return data;
+    } catch (err) {
+      return null;
+    }
+  }
 }
 
 const supabaseService = new SupabaseService();

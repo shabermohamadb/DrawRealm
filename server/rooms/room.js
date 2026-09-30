@@ -3,6 +3,7 @@ const { GameEngine, STATES, SETTINGS } = require("../game/gameEngine");
 const EvolutionManager = require("../evolution/evolutionManager");
 const supabaseService = require("../db/supabaseClient");
 const storage = require("../evolution/storage");
+const db = require("../db/database");
 
 // Packet IDs
 const PACKETS = {
@@ -33,10 +34,14 @@ class Room {
    * @param {string} options.id - Room ID
    * @param {number} options.type - 0 for public, 1 for custom
    * @param {number} options.lang - Initial language ID
+   * @param {string} [options.category] - Word category
+   * @param {Object} [options.roomManager] - Parent room manager
    */
-  constructor({ id, type = 1, lang = 0 }) {
+  constructor({ id, type = 1, lang = 0, category = "Random", mode = 0, slots = 8, rounds = 3, drawtime = 80, roomManager = null }) {
     this.id = id;
     this.type = type;
+    this.category = category || "Random";
+    this.roomManager = roomManager;
     this.players = new Map(); // id -> Player
     this.nextPlayerId = 1;
     this.ownerId = -1;
@@ -46,14 +51,14 @@ class Room {
 
     // Settings array: [LANG, SLOTS, DRAWTIME, ROUNDS, WORDCOUNT, HINTCOUNT, WORDMODE, CUSTOMWORDSONLY]
     this.settings = [
-      parseInt(lang, 10) || 0, // 0: Language
-      8,                       // 1: Slots (max players)
-      80,                      // 2: Drawtime
-      3,                       // 3: Rounds
-      3,                       // 4: Word count
-      2,                       // 5: Hints
-      0,                       // 6: Game Mode (0: Normal, 1: Speed, 2: Team, 3: Rush, 4: Mystery, 5: Chaos, 6: Evolution)
-      0                        // 7: Custom words only (0: No)
+      parseInt(lang, 10) || 0,                            // 0: Language
+      parseInt(slots, 10) || 8,                           // 1: Slots (max players)
+      parseInt(drawtime, 10) || 80,                       // 2: Drawtime
+      parseInt(rounds, 10) || 3,                          // 3: Rounds
+      3,                                                  // 4: Word count
+      2,                                                  // 5: Hints
+      parseInt(mode, 10) || 0,                            // 6: Game Mode (0: Normal/Classic, 6: Evolution)
+      0                                                   // 7: Custom words only (0: No)
     ];
 
     this.customWords = [];
@@ -61,6 +66,32 @@ class Room {
     this.undoHistory = [];
     this.game = new GameEngine(this);
     this.evolution = new EvolutionManager(this);
+
+    // Create persistent room record in database
+    db.createRoomRecord({
+      id: this.id,
+      roomCode: this.id,
+      roomType: this.type === 0 ? "public" : "private",
+      hostPlayerId: null,
+      gameMode: this.settings[SETTINGS.WORDMODE] === 6 ? "Evolution" : "Classic",
+      category: this.category,
+      status: "waiting",
+      maxPlayers: this.settings[SETTINGS.SLOTS] || 8
+    });
+  }
+
+  get roomType() {
+    return this.type === 0 ? "public" : "private";
+  }
+
+  get isStarted() {
+    return !!(this.game && this.game.state !== STATES.LOBBY && this.game.state !== STATES.WAITING && this.game.state !== STATES.GAME_OVER);
+  }
+
+  onStateChange() {
+    if (this.roomManager && typeof this.roomManager.broadcastPublicRoomsUpdated === "function") {
+      this.roomManager.broadcastPublicRoomsUpdated();
+    }
   }
 
   getActivePlayers() {
@@ -136,9 +167,24 @@ class Room {
       return null;
     }
 
+    // Check if room is already started (unless spectator)
+    if (this.isStarted && !isSpectator) {
+      if (socket && typeof socket.emit === "function") {
+        socket.emit("joinerr", {
+          code: "ROOM_ALREADY_STARTED",
+          message: "Game has already started in this room."
+        });
+      }
+      return null;
+    }
+
     // Server-side atomic capacity check to protect against simultaneous join race conditions
     if (!isSpectator && this.getActivePlayers().length >= maxSlots) {
       if (socket && typeof socket.emit === "function") {
+        socket.emit("joinerr", {
+          code: "ROOM_FULL",
+          message: "Room is full."
+        });
         socket.emit("joinerr", 2);
       }
       return null;
@@ -165,7 +211,17 @@ class Room {
     this.players.set(playerId, player);
     if (isFirst) {
       this.ownerId = playerId;
+      db.updateRoomRecord(this.id, { hostPlayerId: playerId });
     }
+
+    db.addRoomPlayer({
+      roomId: this.id,
+      playerId: playerId,
+      playerName: cleanName,
+      role: isFirst ? "host" : (isSpectator ? "spectator" : "player")
+    });
+
+    this.onStateChange();
 
     // Determine current state payload for late-joiners
     let stateData = 0;
@@ -195,7 +251,9 @@ class Room {
       data: {
         me: playerId,
         type: this.type,
+        roomType: this.roomType,
         id: this.id,
+        category: this.category,
         settings: this.settings,
         users: this.getUsersJSON(),
         round: Math.max(0, this.game.currentRound - 1),
@@ -305,7 +363,9 @@ class Room {
       data: {
         me: player.id,
         type: this.type,
+        roomType: this.roomType,
         id: this.id,
+        category: this.category,
         settings: this.settings,
         users: this.getUsersJSON(),
         round: Math.max(0, this.game.currentRound - 1),
@@ -332,6 +392,9 @@ class Room {
   /**
    * Promotes the next active connected player to room host
    */
+  /**
+   * Promotes the next active connected player to room host
+   */
   transferHostToNextActive() {
     const remaining = this.getActivePlayers();
     if (remaining.length > 0) {
@@ -341,9 +404,17 @@ class Room {
         id: PACKETS.OWNER,
         data: this.ownerId
       });
+      this.broadcastCustom("evolution:host_changed", {
+        hostId: this.ownerId,
+        hostName: remaining[0].name
+      });
+      db.updateRoomRecord(this.id, { hostPlayerId: this.ownerId });
+      this.onStateChange();
       return remaining[0];
     } else {
       this.ownerId = -1;
+      db.updateRoomRecord(this.id, { hostPlayerId: null });
+      this.onStateChange();
       return null;
     }
   }
@@ -361,6 +432,9 @@ class Room {
     }
 
     this.players.delete(playerId);
+
+    db.updateRoomPlayerLeft({ roomId: this.id, playerId });
+    this.onStateChange();
 
     // Broadcast player left (va = 2)
     this.broadcast({
@@ -387,6 +461,11 @@ class Room {
     if (this.evolution && typeof this.evolution.destroy === "function") {
       this.evolution.destroy();
     }
+    db.updateRoomRecord(this.id, {
+      status: "closed",
+      endedAt: Date.now()
+    });
+    this.onStateChange();
   }
 
   /**
@@ -428,6 +507,14 @@ class Room {
   updateSetting(settingIndex, value, senderPlayer) {
     if (senderPlayer.id !== this.ownerId) return;
 
+    if (settingIndex === "category" || settingIndex === 8) {
+      this.category = String(value || "Random").trim();
+      this.broadcastCustom("evolution:category_changed", { category: this.category });
+      db.updateRoomRecord(this.id, { category: this.category });
+      this.onStateChange();
+      return;
+    }
+
     const sIdx = parseInt(settingIndex, 10);
     const parsedVal = (sIdx === SETTINGS.CUSTOMWORDSONLY)
       ? (value ? 1 : 0)
@@ -445,7 +532,12 @@ class Room {
       for (const p of this.players.values()) {
         this.evolution.syncPlayerState(p);
       }
+      db.updateRoomRecord(this.id, { gameMode: parsedVal === 6 ? "Evolution" : "Classic" });
+    } else if (sIdx === SETTINGS.SLOTS) {
+      db.updateRoomRecord(this.id, { maxPlayers: parsedVal });
     }
+
+    this.onStateChange();
   }
 
   /**

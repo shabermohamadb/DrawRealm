@@ -694,19 +694,58 @@
   background: #1671c5;
 }
 
-.lobby-mode-badge .mode-tag {
+.lobby-meta-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lobby-meta-badges .host-tag,
+.lobby-meta-badges .type-tag,
+.lobby-meta-badges .mode-tag,
+.lobby-meta-badges .category-tag {
   display: inline-block;
   font-size: 0.85em;
   font-weight: 800;
   padding: 3px 8px;
   border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.lobby-meta-badges .host-tag {
+  color: #f1c40f;
+  background: rgba(241, 196, 15, 0.15);
+  border-color: rgba(241, 196, 15, 0.4);
+}
+
+.lobby-meta-badges .type-tag.type-public {
+  background: #0984e3;
+  color: #fff;
+  border-color: #0984e3;
+}
+
+.lobby-meta-badges .type-tag.type-private {
+  background: #6c5ce7;
+  color: #fff;
+  border-color: #6c5ce7;
+}
+
+.lobby-meta-badges .mode-tag {
   background: #53e237;
   color: #0d2818;
 }
 
-.lobby-mode-badge .mode-tag.mode-evolution {
+.lobby-meta-badges .mode-tag.mode-evolution {
   background: #8854d0;
   color: #fff;
+}
+
+.lobby-meta-badges .category-tag {
+  background: rgba(255, 255, 255, 0.12);
+  color: #00cec9;
 }
 
 .btn-lobby-rules {
@@ -967,13 +1006,20 @@
   background: rgba(0,0,0,0.25);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 10px 14px;
+  gap: 12px;
 }
 
 .public-room-card .room-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+}
+
+.public-room-card .room-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .public-room-card .room-code-tag {
@@ -982,24 +1028,55 @@
   color: #ffdd59;
 }
 
+.public-room-card .room-status-badge {
+  font-size: 0.72em;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.room-status-badge.status-waiting {
+  background: #2ed573;
+  color: #0c381e;
+}
+
+.room-status-badge.status-in_game {
+  background: #ffa502;
+  color: #3b2200;
+}
+
+.room-status-badge.status-full {
+  background: #ff4757;
+  color: #ffffff;
+}
+
 .public-room-card .room-meta {
   font-size: 0.85em;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .btn-room-join {
   background: #53e237;
   color: #fff;
   border: 0;
-  padding: 6px 14px;
+  padding: 6px 16px;
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
   transition: background-color 80ms;
 }
 
-.btn-room-join:hover {
+.btn-room-join:hover:not(:disabled) {
   background: #38c41c;
+}
+
+.btn-room-join:disabled {
+  background: #57606f !important;
+  color: #a4b0be !important;
+  cursor: not-allowed !important;
+  opacity: 0.7;
 }
 
 .public-browser-footer {

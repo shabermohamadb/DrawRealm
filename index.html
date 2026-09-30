@@ -233,12 +233,15 @@
             <!-- Refined Lobby Top Bar: Clear Room Code, Copy Link, Mode Badge & Rules -->
             <div class="lobby-header-bar">
               <div class="lobby-room-badge">
-                <span class="badge-label">ROOM CODE:</span>
+                <span class="badge-label">ROOM:</span>
                 <span class="badge-code" id="lobby-code-display">--------</span>
                 <button type="button" class="btn-lobby-copy" id="btn-lobby-copy-link" title="Copy Invite Link">COPY LINK</button>
               </div>
-              <div class="lobby-mode-badge">
+              <div class="lobby-meta-badges">
+                <span class="host-tag" id="lobby-host-tag">Host: --</span>
+                <span class="type-tag" id="lobby-type-tag">PUBLIC</span>
                 <span class="mode-tag" id="lobby-mode-tag">CLASSIC MODE</span>
+                <span class="category-tag" id="lobby-category-tag">Category: Random</span>
               </div>
               <div class="lobby-rules-btn-wrap">
                 <button type="button" class="btn-lobby-rules" id="btn-lobby-rules">GAME RULES</button>
@@ -277,6 +280,17 @@
                   <option value="1">Hidden</option>
                   <option value="2">Combination</option>
                   <option value="6">Evolution</option>
+                </select>
+              </div>
+              <div class="key"><img src="img/setting_6.gif" alt="Category"><span data-translate="text">Category</span></div>
+              <div class="value">
+                <select id="item-settings-category" data-setting="category">
+                  <option value="Random" selected>Random</option>
+                  <option value="Anime">Anime</option>
+                  <option value="Cars">Cars</option>
+                  <option value="Animals">Animals</option>
+                  <option value="Food">Food</option>
+                  <option value="Gaming">Gaming</option>
                 </select>
               </div>
               <div class="key"><img src="img/setting_4.gif" alt="Word Count"><span data-translate="text">Word Count</span></div>
@@ -511,6 +525,17 @@
                 <option value="7">French</option>
                 <option value="24">Spanish</option>
                 <option value="21">Russian</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>Category:</label>
+              <select id="create-select-category">
+                <option value="Random" selected>Random (All Words)</option>
+                <option value="Anime">Anime</option>
+                <option value="Cars">Cars</option>
+                <option value="Animals">Animals</option>
+                <option value="Food">Food</option>
+                <option value="Gaming">Gaming</option>
               </select>
             </div>
           </div>

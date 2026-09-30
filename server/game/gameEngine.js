@@ -110,6 +110,15 @@ class GameEngine {
 
     // State 1: Game starting in a few seconds...
     this.setState(STATES.STARTING, 3, 0);
+
+    db.updateRoomRecord(this.room.id, {
+      status: "in_game",
+      startedAt: this.gameStartedAt
+    });
+    if (typeof this.room.onStateChange === "function") {
+      this.room.onStateChange();
+    }
+
     this.startTimer(3, () => {
       this.startNextRound();
     });
@@ -226,7 +235,7 @@ class GameEngine {
     const wordCount = parseInt(this.room.settings[SETTINGS.WORDCOUNT]) || 3;
     const lang = parseInt(this.room.settings[SETTINGS.LANG]) || 0;
     const customOnly = !!this.room.settings[SETTINGS.CUSTOMWORDSONLY];
-    this.wordChoices = getRandomWords(lang, wordCount, this.room.customWords, customOnly);
+    this.wordChoices = getRandomWords(lang, wordCount, this.room.customWords, customOnly, this.room.category);
 
     // State 3: Word choice phase (15 seconds)
     this.state = STATES.WORD_CHOICE;
@@ -657,6 +666,14 @@ class GameEngine {
     // Broadcast State 6: Game Over / Podium (10 seconds)
     this.setState(STATES.GAME_OVER, 10, podiumData);
 
+    db.updateRoomRecord(this.room.id, {
+      status: "finished",
+      endedAt: Date.now()
+    });
+    if (typeof this.room.onStateChange === "function") {
+      this.room.onStateChange();
+    }
+
     this.startTimer(10, () => {
       this.resetToLobby();
     });
@@ -682,6 +699,13 @@ class GameEngine {
 
     for (const p of this.room.players.values()) {
       p.resetGame();
+    }
+
+    db.updateRoomRecord(this.room.id, {
+      status: "waiting"
+    });
+    if (typeof this.room.onStateChange === "function") {
+      this.room.onStateChange();
     }
 
     this.setState(STATES.LOBBY, 0, 0);

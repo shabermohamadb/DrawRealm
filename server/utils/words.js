@@ -44,10 +44,59 @@ const WORDS_DE = [
   "Baum", "Blume", "Berg", "Vulkan", "Fluss", "Haus", "Schloss", "Brücke"
 ];
 
+const CATEGORY_WORDS = {
+  Anime: [
+    "goku", "naruto", "luffy", "titan", "ninja", "katana", "chakra", "saiyan",
+    "pokemon", "pikachu", "dragon", "mecha", "shinigami", "alchemist", "senpai",
+    "sensei", "demon", "hunter", "ghoul", "pirate", "bleach", "sharingan",
+    "rasengan", "stand", "deku", "all might", "eren", "levi", "itachi", "sasuke",
+    "vegeta", "zenitsu", "tanjiro", "sukuna", "gojo"
+  ],
+  Cars: [
+    "car", "bus", "truck", "train", "airplane", "helicopter", "rocket", "boat",
+    "ship", "submarine", "bicycle", "motorcycle", "scooter", "skateboard", "tractor",
+    "ambulance", "engine", "wheel", "tire", "sedan", "ferrari", "porsche", "bumper",
+    "steering wheel", "brake", "exhaust", "turbo", "clutch", "gearbox", "tesla",
+    "roadster", "mustang", "corvette", "battery", "headlight", "windshield", "spoiler", "radiator"
+  ],
+  Animals: [
+    "dog", "cat", "mouse", "rabbit", "lion", "tiger", "bear", "elephant",
+    "giraffe", "monkey", "zebra", "kangaroo", "panda", "penguin", "dolphin", "whale",
+    "shark", "octopus", "turtle", "frog", "snake", "crocodile", "duck", "chicken",
+    "cow", "pig", "sheep", "horse", "goat", "deer", "bee", "butterfly",
+    "spider", "ant", "snail", "crab", "lobster", "eagle", "owl", "parrot"
+  ],
+  Food: [
+    "apple", "banana", "orange", "pear", "strawberry", "grape", "watermelon", "pineapple",
+    "cherry", "lemon", "peach", "avocado", "tomato", "potato", "carrot", "onion",
+    "mushroom", "broccoli", "corn", "pizza", "burger", "sandwich", "taco", "sushi",
+    "pancake", "waffle", "donut", "cookie", "cake", "ice cream", "chocolate", "popcorn",
+    "pasta", "ramen", "cheese"
+  ],
+  Gaming: [
+    "controller", "joystick", "console", "arcade", "quest", "boss", "pixel",
+    "dungeon", "armor", "shield", "sword", "potion", "respawn", "stealth",
+    "glitch", "headset", "keyboard", "mousepad", "gamer", "level", "portal",
+    "inventory", "loot", "avatar", "mana", "health bar"
+  ]
+};
+
 const WORD_DICTIONARIES = {
   0: WORDS_EN, // English
   1: WORDS_DE  // German
 };
+
+/**
+ * Normalizes a category string to match CATEGORY_WORDS keys
+ */
+function resolveCategory(cat) {
+  if (!cat || typeof cat !== "string") return null;
+  const clean = cat.trim().toLowerCase();
+  for (const key of Object.keys(CATEGORY_WORDS)) {
+    if (key.toLowerCase() === clean) return key;
+  }
+  return null;
+}
 
 /**
  * Returns an array of random words for the word choice phase.
@@ -55,18 +104,32 @@ const WORD_DICTIONARIES = {
  * @param {number} count - Number of words to pick (e.g. 3)
  * @param {Array<string>} customWords - Custom words array if provided
  * @param {boolean} customOnly - If true, only pick from customWords
+ * @param {string} [category] - Optional category filter (e.g. "Anime", "Cars", "Animals", "Food", "Gaming", "Random")
  * @returns {Array<string>}
  */
-function getRandomWords(langId = 0, count = 3, customWords = [], customOnly = false) {
+function getRandomWords(langId = 0, count = 3, customWords = [], customOnly = false, category = "Random") {
   let pool = [];
 
   if (customOnly && customWords && customWords.length >= 3) {
     pool = [...customWords];
-  } else if (customWords && customWords.length > 0) {
-    const baseDict = WORD_DICTIONARIES[langId] || WORDS_EN;
-    pool = [...baseDict, ...customWords];
   } else {
-    pool = WORD_DICTIONARIES[langId] || WORDS_EN;
+    const matchedCategory = resolveCategory(category);
+    let categoryList = null;
+    if (matchedCategory && CATEGORY_WORDS[matchedCategory]) {
+      categoryList = CATEGORY_WORDS[matchedCategory];
+    }
+
+    if (categoryList && categoryList.length > 0) {
+      pool = [...categoryList];
+      if (customWords && customWords.length > 0) {
+        pool = [...pool, ...customWords];
+      }
+    } else if (customWords && customWords.length > 0) {
+      const baseDict = WORD_DICTIONARIES[langId] || WORDS_EN;
+      pool = [...baseDict, ...customWords];
+    } else {
+      pool = WORD_DICTIONARIES[langId] || WORDS_EN;
+    }
   }
 
   // Deduplicate and filter words
@@ -80,5 +143,7 @@ function getRandomWords(langId = 0, count = 3, customWords = [], customOnly = fa
 module.exports = {
   WORDS_EN,
   WORDS_DE,
+  CATEGORY_WORDS,
+  resolveCategory,
   getRandomWords
 };

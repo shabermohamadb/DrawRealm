@@ -8,6 +8,11 @@
   let evolutionState = null;
   let cooldownInterval = null;
   let isEvolutionActive = false;
+  let currentRoomCategory = "Random";
+  let currentRoomType = "public";
+  let currentHostName = "Host";
+  let currentRoomCode = "";
+  let cachedPublicRooms = [];
 
   // Intercept window.io to capture socket instance cleanly and ensure production path
   if (window.io) {
@@ -144,6 +149,36 @@
       if (data && data.msg) appendSystemChatMessage(data.msg, data.color);
     });
 
+    sock.on("evolution:host_changed", (data) => {
+      if (data && data.hostName) {
+        currentHostName = data.hostName;
+        updateLobbyHeader();
+        appendSystemChatMessage(`👑 Host transferred to ${data.hostName}.`, "#f1c40f");
+      }
+    });
+
+    sock.on("public_rooms_updated", (rooms) => {
+      renderPublicRooms(rooms);
+    });
+    sock.on("PUBLIC_ROOMS_UPDATED", (rooms) => {
+      renderPublicRooms(rooms);
+    });
+
+    sock.on("joinerr", (err) => {
+      let msg = "Could not join room.";
+      if (err === 1) msg = "Room not found. Check the room code.";
+      else if (err === 2) msg = "This room is full.";
+      else if (err && typeof err === "object") {
+        msg = err.message || (err.code === "ROOM_ALREADY_STARTED" ? "Game already started. Joins are closed." : "Join failed.");
+      }
+      const joinErrEl = document.getElementById("join-error-msg");
+      if (joinErrEl) {
+        joinErrEl.textContent = msg;
+        joinErrEl.style.display = "block";
+      }
+      appendSystemChatMessage(`⚠️ ${msg}`, "#ff4757");
+    });
+
     // Watch for legacy packet 10 (ROOM_INIT) and 12 (SETTINGS)
     sock.on("data", (packet = {}) => {
       if (packet.id === 10) {
@@ -156,13 +191,32 @@
             }));
           } catch (e) {}
         }
-        if (packet.data && packet.data.settings) {
-          checkModeActive(packet.data.settings[6]);
+        if (packet.data) {
+          if (packet.data.id) currentRoomCode = packet.data.id;
+          if (packet.data.type) currentRoomType = packet.data.type;
+          if (packet.data.category) currentRoomCategory = packet.data.category;
+          if (packet.data.settings) {
+            checkModeActive(packet.data.settings[6]);
+          }
+          if (packet.data.users && packet.data.owner !== undefined) {
+            const hostUser = packet.data.users.find(u => u.id === packet.data.owner);
+            if (hostUser) currentHostName = hostUser.name;
+          }
+          const sCategory = document.getElementById("item-settings-category");
+          if (sCategory && packet.data.category) {
+            sCategory.value = packet.data.category;
+          }
         }
         setTimeout(updateLobbyHeader, 50);
       } else if (packet.id === 12) {
-        if (packet.data && parseInt(packet.data.id, 10) === 6) {
-          checkModeActive(packet.data.val);
+        if (packet.data) {
+          if (packet.data.id === "category" || packet.data.id === 8) {
+            currentRoomCategory = packet.data.val;
+            const sCategory = document.getElementById("item-settings-category");
+            if (sCategory) sCategory.value = packet.data.val;
+          } else if (parseInt(packet.data.id, 10) === 6) {
+            checkModeActive(packet.data.val);
+          }
         }
         setTimeout(updateLobbyHeader, 50);
       }
@@ -1414,6 +1468,8 @@
 
     const roomType = getToggleValue("create-room-type-group", "private");
     const mode = parseInt(getToggleValue("create-mode-group", "0"), 10) || 0;
+    const catSelect = document.getElementById("create-select-category");
+    const category = catSelect ? catSelect.value : "Random";
     const slots = parseInt(document.getElementById("create-select-slots").value, 10) || 8;
     const rounds = parseInt(document.getElementById("create-select-rounds").value, 10) || 3;
     const drawtime = parseInt(document.getElementById("create-select-drawtime").value, 10) || 80;
@@ -1423,10 +1479,14 @@
 
     closeDrawRealmModal("drawrealm-modal-create");
 
+    currentRoomType = roomType;
+    currentRoomCategory = category;
+
     // Store pending room options to pass into the login packet
     window.__drawrealmPendingRoom = {
       roomType,
       mode,
+      category,
       slots,
       rounds,
       drawtime,
@@ -1449,6 +1509,8 @@
       sMode.value = String(mode);
       sMode.dispatchEvent(new Event("change", { bubbles: true }));
     }
+    const sCategory = document.getElementById("item-settings-category");
+    if (sCategory) sCategory.value = category;
     const sCustomWords = document.getElementById("item-settings-customwords");
     if (sCustomWords && customWords) sCustomWords.value = customWords;
     const sCustomOnly = document.getElementById("item-settings-customwordsonly");
@@ -1493,57 +1555,88 @@
     }
   }
 
-  function loadPublicRooms() {
+  function renderPublicRooms(rooms) {
+    cachedPublicRooms = Array.isArray(rooms) ? rooms : [];
     const container = document.getElementById("public-rooms-list-container");
     const countLabel = document.getElementById("public-rooms-count-label");
+    if (!container) return;
+
+    if (!Array.isArray(rooms) || rooms.length === 0) {
+      container.innerHTML = "<p style='text-align:center;padding:24px;opacity:0.8'>No public rooms active right now.<br>Create one below to start playing!</p>";
+      if (countLabel) countLabel.textContent = "0 Active Public Rooms";
+      return;
+    }
+
+    if (countLabel) countLabel.textContent = `${rooms.length} Active Public Room${rooms.length > 1 ? "s" : ""}`;
+    container.innerHTML = "";
+
+    rooms.forEach(room => {
+      const card = document.createElement("div");
+      card.className = "public-room-card";
+      const isEvo = room.mode === 6;
+      const modeLabel = isEvo ? "Evolution" : "Classic";
+      const isFull = room.players >= room.maxSlots || room.isFull;
+      const isStarted = !!room.isStarted || room.status === "In Game";
+
+      let statusClass = "waiting";
+      let statusText = "Waiting";
+      let joinDisabled = false;
+      let joinBtnText = "Join";
+
+      if (isFull) {
+        statusClass = "full";
+        statusText = "Full";
+        joinDisabled = true;
+        joinBtnText = "Full";
+      } else if (isStarted) {
+        statusClass = "in_game";
+        statusText = "In Game";
+        joinDisabled = true;
+        joinBtnText = "In Game";
+      }
+
+      card.innerHTML = `
+        <div class="room-info">
+          <div class="room-header-row">
+            <span class="room-code-tag">Room #${room.id}</span>
+            <span class="room-status-badge status-${statusClass}">${statusText}</span>
+          </div>
+          <span class="room-meta">
+            Players: <b>${room.players} / ${room.maxSlots}</b> &bull; Mode: <b>${modeLabel}</b> &bull; Category: <b>${room.category || "Random"}</b>
+          </span>
+        </div>
+        <button type="button" class="btn-room-join" ${joinDisabled ? "disabled" : ""} data-room-id="${room.id}">
+          ${joinBtnText}
+        </button>
+      `;
+
+      const joinBtn = card.querySelector(".btn-room-join");
+      if (joinBtn && !joinDisabled) {
+        joinBtn.addEventListener("click", () => {
+          const validName = getValidatedPlayerName(true);
+          if (!validName) {
+            closeDrawRealmModal("drawrealm-modal-public");
+            return;
+          }
+          window.history.pushState(null, "", "?" + room.id);
+          closeDrawRealmModal("drawrealm-modal-public");
+          const playBtn = document.querySelector("#home .panel .button-play");
+          if (playBtn) playBtn.click();
+        });
+      }
+      container.appendChild(card);
+    });
+  }
+
+  function loadPublicRooms() {
+    const container = document.getElementById("public-rooms-list-container");
     if (!container) return;
     container.innerHTML = "<p style='text-align:center;padding:16px;opacity:0.7'>Loading public rooms...</p>";
 
     fetch("/api/rooms")
       .then(res => res.json())
       .then(rooms => {
-        if (!Array.isArray(rooms) || rooms.length === 0) {
-          container.innerHTML = "<p style='text-align:center;padding:24px;opacity:0.8'>No public rooms active right now.<br>Create one below to start playing!</p>";
-          if (countLabel) countLabel.textContent = "0 Active Public Rooms";
-          return;
-        }
-
-        if (countLabel) countLabel.textContent = `${rooms.length} Active Public Room${rooms.length > 1 ? "s" : ""}`;
-        container.innerHTML = "";
-
-        rooms.forEach(room => {
-          const card = document.createElement("div");
-          card.className = "public-room-card";
-          const isEvo = room.mode === 6;
-          const modeLabel = isEvo ? "Evolution" : "Classic";
-          const isFull = room.players >= room.maxSlots;
-
-          card.innerHTML = `
-            <div class="room-info">
-              <span class="room-code-tag">Room #${room.id}</span>
-              <span class="room-meta">Mode: <b>${modeLabel}</b> | Players: <b>${room.players} / ${room.maxSlots}</b></span>
-            </div>
-            <button type="button" class="btn-room-join" ${isFull ? "disabled" : ""} data-room-id="${room.id}">
-              ${isFull ? "Full" : "Join"}
-            </button>
-          `;
-
-          const joinBtn = card.querySelector(".btn-room-join");
-          if (joinBtn && !isFull) {
-            joinBtn.addEventListener("click", () => {
-              const validName = getValidatedPlayerName(true);
-              if (!validName) {
-                closeDrawRealmModal("drawrealm-modal-public");
-                return;
-              }
-              window.history.pushState(null, "", "?" + room.id);
-              closeDrawRealmModal("drawrealm-modal-public");
-              const playBtn = document.querySelector("#home .panel .button-play");
-              if (playBtn) playBtn.click();
-            });
-          }
-          container.appendChild(card);
-        });
+        renderPublicRooms(rooms);
       })
       .catch(err => {
         container.innerHTML = "<p style='text-align:center;color:#ff4757;padding:16px'>Failed to load public rooms.</p>";
@@ -1555,17 +1648,35 @@
     const inviteInput = document.getElementById("input-invite");
     const codeDisplay = document.getElementById("lobby-code-display");
     const modeTag = document.getElementById("lobby-mode-tag");
+    const hostTag = document.getElementById("lobby-host-tag");
+    const typeTag = document.getElementById("lobby-type-tag");
+    const catTag = document.getElementById("lobby-category-tag");
 
-    if (codeDisplay) {
-      let code = "";
+    let code = currentRoomCode;
+    if (!code) {
       if (inviteInput && inviteInput.value && inviteInput.value.includes("?")) {
         code = inviteInput.value.split("?")[1];
       } else if (window.location.search && window.location.search.length > 1) {
         code = window.location.search.slice(1);
       }
-      if (code) {
-        codeDisplay.textContent = code;
-      }
+    }
+    if (code) {
+      currentRoomCode = code;
+      if (codeDisplay) codeDisplay.textContent = code;
+    }
+
+    if (hostTag) {
+      hostTag.textContent = `Host: ${currentHostName || "Host"}`;
+    }
+
+    if (typeTag) {
+      const isPriv = currentRoomType === "private";
+      typeTag.textContent = isPriv ? "PRIVATE" : "PUBLIC";
+      typeTag.className = `type-tag ${isPriv ? "type-private" : "type-public"}`;
+    }
+
+    if (catTag) {
+      catTag.textContent = `Category: ${currentRoomCategory || "Random"}`;
     }
 
     if (modeTag) {
@@ -1610,6 +1721,18 @@
 
     setupDrawRealmModals();
     setInterval(updateLobbyHeader, 1000);
+
+    const sCategory = document.getElementById("item-settings-category");
+    if (sCategory) {
+      sCategory.addEventListener("change", () => {
+        const val = sCategory.value;
+        currentRoomCategory = val;
+        updateLobbyHeader();
+        if (socket) {
+          socket.emit("data", { id: 12, data: { id: "category", val: val } });
+        }
+      });
+    }
 
     // Power Points unlock button & modal handlers
     const unlockBtn = document.getElementById("evolution-btn-unlock-power");
