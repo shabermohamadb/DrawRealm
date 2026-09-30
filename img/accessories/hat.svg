@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Crown with Indentation -->
+  <path d="M 58 46 C 56 30 65 24 74 27 C 80 29 86 29 92 27 C 101 24 104 30 102 46 Z" fill="#27272a" stroke="#09090b" stroke-width="2.5"/>
+  <path d="M 61 44 C 59 32 66 27 74 30 C 80 32 86 32 92 30 C 99 27 101 32 99 44 Z" fill="#3f3f46"/>
+  <!-- Silk Ribbon Band -->
+  <path d="M 58 43 Q 80 47 102 43 L 102 48 Q 80 52 58 48 Z" fill="#dc2626" stroke="#991b1b" stroke-width="1"/>
+  <!-- Curved Brim -->
+  <path d="M 42 47 C 44 42 70 41 80 41 C 90 41 116 42 118 47 C 120 53 105 57 80 57 C 55 57 40 53 42 47 Z" fill="#18181b" stroke="#09090b" stroke-width="2"/>
+  <path d="M 45 47 C 55 44 72 43 80 43 C 88 43 105 44 115 47 C 114 51 98 54 80 54 C 62 54 46 51 45 47 Z" fill="#27272a"/>
+</svg>

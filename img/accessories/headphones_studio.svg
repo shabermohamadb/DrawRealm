@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Chunky Leather Headband with double rail -->
+  <path d="M 51 74 C 48 38 60 23 80 23 C 100 23 112 38 109 74" fill="none" stroke="#18181b" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 51 74 C 48 38 60 23 80 23 C 100 23 112 38 109 74" fill="none" stroke="#3f3f46" stroke-width="5.5" stroke-linecap="round"/>
+  <!-- Stitching dots -->
+  <path d="M 58 50 C 62 33 70 27 80 27 C 90 27 98 33 102 50" fill="none" stroke="#71717a" stroke-width="1" stroke-dasharray="2 3"/>
+  <!-- Left Heavy Cup -->
+  <g transform="translate(42, 60)">
+    <rect x="0" y="0" width="17" height="28" rx="8.5" fill="#18181b"/>
+    <rect x="2" y="2" width="13" height="24" rx="6.5" fill="#27272a"/>
+    <circle cx="8.5" cy="14" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="1.5"/>
+    <rect x="1" y="9" width="3" height="10" rx="1" fill="#a1a1aa"/>
+  </g>
+  <!-- Right Heavy Cup -->
+  <g transform="translate(101, 60)">
+    <rect x="0" y="0" width="17" height="28" rx="8.5" fill="#18181b"/>
+    <rect x="2" y="2" width="13" height="24" rx="6.5" fill="#27272a"/>
+    <circle cx="8.5" cy="14" r="5" fill="#09090b" stroke="#a1a1aa" stroke-width="1.5"/>
+    <rect x="13" y="9" width="3" height="10" rx="1" fill="#a1a1aa"/>
+  </g>
+  <!-- Coiled Wire -->
+  <path d="M 46 88 Q 43 96 46 102 Q 49 108 47 114" fill="none" stroke="#27272a" stroke-width="2"/>
+</svg>

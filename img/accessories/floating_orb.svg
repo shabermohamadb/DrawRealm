@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <defs>
+    <radialGradient id="fo_core" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#d8b4fe"/>
+      <stop offset="70%" stop-color="#9333ea"/>
+      <stop offset="100%" stop-color="#581c87"/>
+    </radialGradient>
+    <filter id="fo_glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Floating near right side at (116, 75) -->
+  <g transform="translate(108, 66)">
+    <!-- Outer Arcane Ring -->
+    <ellipse cx="9" cy="9" rx="14" ry="5" transform="rotate(-25 9 9)" fill="none" stroke="#c084fc" stroke-width="1.8" filter="url(#fo_glow)"/>
+    <!-- Glowing Sphere -->
+    <circle cx="9" cy="9" r="8.5" fill="url(#fo_core)" stroke="#581c87" stroke-width="1.5" filter="url(#fo_glow)"/>
+    <!-- Inner Spark -->
+    <circle cx="7" cy="7" r="2" fill="#ffffff" opacity="0.9"/>
+    <!-- Orbiting Energy Dust -->
+    <circle cx="-1" cy="4" r="1" fill="#f0abfc"/>
+    <circle cx="19" cy="14" r="1.2" fill="#f0abfc"/>
+    <circle cx="9" cy="20" r="0.8" fill="#e9d5ff"/>
+  </g>
+</svg>

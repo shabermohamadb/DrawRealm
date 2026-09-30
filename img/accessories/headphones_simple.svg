@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Thin Steel Band -->
+  <path d="M 53 74 C 51 44 62 29 80 29 C 98 29 109 44 107 74" fill="none" stroke="#475569" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 53 74 C 51 44 62 29 80 29 C 98 29 109 44 107 74" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+  <!-- Left Orange Foam -->
+  <ellipse cx="50" cy="74" rx="7.5" ry="11" fill="#ea580c" stroke="#9a3412" stroke-width="2"/>
+  <ellipse cx="50" cy="74" rx="5" ry="8" fill="#f97316"/>
+  <!-- Right Orange Foam -->
+  <ellipse cx="110" cy="74" rx="7.5" ry="11" fill="#ea580c" stroke="#9a3412" stroke-width="2"/>
+  <ellipse cx="110" cy="74" rx="5" ry="8" fill="#f97316"/>
+</svg>

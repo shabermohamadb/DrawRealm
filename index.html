@@ -101,6 +101,25 @@
           <div class="randomize" data-tooltip="Randomize your Avatar!" data-tooltipdir="N"></div>
         </div>
 
+        <!-- Compact Accessories Selector -->
+        <div class="accessory-selector-container">
+          <div class="accessory-tabs">
+            <button type="button" class="acc-tab active" data-category="head">HEAD</button>
+            <button type="button" class="acc-tab" data-category="face">FACE</button>
+            <button type="button" class="acc-tab" data-category="special">SPECIAL</button>
+            <button type="button" class="acc-tab" data-category="none">NONE</button>
+          </div>
+          <div class="accessory-carousel">
+            <button type="button" class="acc-nav-btn acc-prev" aria-label="Previous Accessory" title="Previous Accessory">&lt;</button>
+            <div class="acc-info">
+              <span class="acc-title">None</span>
+              <span class="acc-category-badge">Headwear</span>
+            </div>
+            <button type="button" class="acc-nav-btn acc-next" aria-label="Next Accessory" title="Next Accessory">&gt;</button>
+            <button type="button" class="acc-random-btn" title="Randomize Accessory">RANDOM</button>
+          </div>
+        </div>
+
         <!-- Clean, retro-grouped Home Actions -->
         <div class="home-actions-group">
           <button class="button-play"><span data-translate="text">Play!</span></button>
@@ -711,6 +730,7 @@
   </div>
 
   <script src="js/socket.io.js"></script>
+  <script src="js/accessories.js"></script>
   <script src="js/evolution.js"></script>
   <script src="js/game.js"></script>
   <script>

@@ -192,17 +192,34 @@ class Room {
 
     const isFirst = this.players.size === 0;
     const playerId = this.nextPlayerId++;
-    const flags = isFirst ? 4 : 0; // Host gets admin flags (4)
+    // Load saved accessory from database profile if client did not supply one
+    let playerAvatar = loginData.avatar;
+    const storedProfile = db.getPlayer(cleanName);
+    if (storedProfile) {
+      if ((!playerAvatar || !playerAvatar[4]) && storedProfile.avatarAccessory) {
+        if (Array.isArray(playerAvatar)) {
+          playerAvatar = [...playerAvatar];
+          playerAvatar[4] = storedProfile.avatarAccessory;
+          playerAvatar[5] = storedProfile.avatarAccessoryVariant || 0;
+        } else if (Array.isArray(storedProfile.avatar) && storedProfile.avatar.length >= 4) {
+          playerAvatar = storedProfile.avatar;
+        }
+      }
+    }
 
+    const flags = isFirst ? 4 : 0;
     const player = new Player({
       id: playerId,
       socket,
       roomId: this.id,
       name: cleanName,
-      avatar: loginData.avatar,
+      avatar: playerAvatar,
       flags,
       spectator: isSpectator
     });
+
+    // Store selected avatar with player profile
+    db.updatePlayerAvatar(cleanName, player.avatar);
 
     if (socket && typeof socket.join === "function") {
       socket.join(this.id);

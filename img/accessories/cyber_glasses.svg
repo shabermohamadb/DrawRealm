@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <defs>
+    <filter id="cg_glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Cyber Visor Plate -->
+  <polygon points="54,68 106,68 102,80 84,81 80,78 76,81 58,80" fill="rgba(6, 182, 212, 0.35)" stroke="#06b6d4" stroke-width="2" filter="url(#cg_glow)"/>
+  <!-- HUD Lines & Targeting -->
+  <line x1="56" y1="71" x2="104" y2="71" stroke="#38bdf8" stroke-width="1.2"/>
+  <line x1="57" y1="76" x2="74" y2="76" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="2 1"/>
+  <line x1="86" y1="76" x2="103" y2="76" stroke="#38bdf8" stroke-width="0.8" stroke-dasharray="2 1"/>
+  <!-- Target Reticle Left -->
+  <circle cx="68" cy="74" r="4" fill="none" stroke="#f43f5e" stroke-width="1.2"/>
+  <line x1="68" y1="68" x2="68" y2="80" stroke="#f43f5e" stroke-width="0.8"/>
+  <!-- Battery / Readout Right -->
+  <rect x="88" y="73" width="7" height="3" fill="none" stroke="#22c55e" stroke-width="0.8"/>
+  <rect x="89" y="74" width="4" height="1.5" fill="#22c55e"/>
+</svg>

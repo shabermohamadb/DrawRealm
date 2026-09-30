@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <defs>
+    <linearGradient id="hw_white" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+  <!-- Clean White Headband -->
+  <path d="M 53 74 C 50 40 62 26 80 26 C 98 26 110 40 107 74" fill="none" stroke="#64748b" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 53 74 C 50 40 62 26 80 26 C 98 26 110 40 107 74" fill="none" stroke="url(#hw_white)" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- Left Cup -->
+  <g transform="translate(44, 63)">
+    <rect x="0" y="0" width="15" height="24" rx="7.5" fill="#475569"/>
+    <rect x="1.5" y="1.5" width="12" height="21" rx="6" fill="url(#hw_white)"/>
+    <ellipse cx="7.5" cy="12" rx="4" ry="7" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+  </g>
+  <!-- Right Cup -->
+  <g transform="translate(101, 63)">
+    <rect x="0" y="0" width="15" height="24" rx="7.5" fill="#475569"/>
+    <rect x="1.5" y="1.5" width="12" height="21" rx="6" fill="url(#hw_white)"/>
+    <ellipse cx="7.5" cy="12" rx="4" ry="7" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+  </g>
+</svg>

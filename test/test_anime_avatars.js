@@ -123,12 +123,14 @@ async function runAvatarTests() {
     // Verify Player B received Player A's avatar in roomInitB.users
     const hostInB = roomInitB.users.find((u) => u.name === "AnimeLeader");
     assert(hostInB, "Host must be in player list for Player B");
-    assert.deepStrictEqual(hostInB.avatar, avatarA, "Player B must receive exact Host anime avatar");
+    assert.deepStrictEqual(hostInB.avatar.slice(0, 4), avatarA, "Player B must receive exact Host anime avatar");
+    assert.strictEqual(hostInB.avatar.length, 6, "Avatar should be normalized to 6-tuple with accessory");
     console.log(`  ✓ Player B sees Player A's anime avatar: [${hostInB.avatar.join(", ")}]`);
 
     // Verify Player A received Player B's avatar via JOIN packet
     assert.strictEqual(userJoinedA.name, "AnimeMage");
-    assert.deepStrictEqual(userJoinedA.avatar, avatarB, "Player A must receive exact joining player anime avatar");
+    assert.deepStrictEqual(userJoinedA.avatar.slice(0, 4), avatarB, "Player A must receive exact joining player anime avatar");
+    assert.strictEqual(userJoinedA.avatar.length, 6, "Joining player avatar should be normalized to 6-tuple");
     console.log(`  ✓ Player A sees Player B's anime avatar: [${userJoinedA.avatar.join(", ")}]`);
 
     // 5. Test Legacy Avatar Modulo Mapping Fallback
@@ -152,7 +154,8 @@ async function runAvatarTests() {
     });
 
     await waitFor(() => userJoinedByC !== null);
-    assert.deepStrictEqual(userJoinedByC.avatar, [25, 42, 18, 5]);
+    assert.deepStrictEqual(userJoinedByC.avatar.slice(0, 4), [25, 42, 18, 5]);
+    assert.strictEqual(userJoinedByC.avatar.length, 6);
     console.log(`  ✓ Legacy player avatar accepted and propagated safely: [${userJoinedByC.avatar.join(", ")}]`);
 
     clientC.disconnect();

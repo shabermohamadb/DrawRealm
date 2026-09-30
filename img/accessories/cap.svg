@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Dome Crown -->
+  <path d="M 52 50 C 50 30 62 21 80 21 C 98 21 110 30 108 50 Z" fill="#1e1b4b" stroke="#0f172a" stroke-width="2.5"/>
+  <path d="M 55 48 C 54 32 64 24 80 24 C 96 24 106 32 105 48 Z" fill="#312e81"/>
+  <!-- Crown Seams -->
+  <path d="M 80 21 L 80 50" stroke="#1e1b4b" stroke-width="1.5"/>
+  <path d="M 80 21 Q 65 32 58 50" stroke="#1e1b4b" stroke-width="1.2"/>
+  <path d="M 80 21 Q 95 32 102 50" stroke="#1e1b4b" stroke-width="1.2"/>
+  <!-- Top Button -->
+  <circle cx="80" cy="21" r="3" fill="#f43f5e" stroke="#0f172a" stroke-width="1"/>
+  <!-- Visor Brim -->
+  <path d="M 45 49 C 48 45 70 43 80 43 C 90 43 112 45 115 49 L 118 56 C 104 59 80 60 42 56 Z" fill="#0f172a"/>
+  <path d="M 47 50 C 55 47 72 45 80 45 C 88 45 105 47 113 50 L 115 54 C 102 57 80 58 45 54 Z" fill="#4338ca"/>
+  <!-- Front Logo Patch -->
+  <polygon points="76,34 84,34 82,42 78,42" fill="#f43f5e"/>
+  <circle cx="80" cy="38" r="1.5" fill="#ffffff"/>
+</svg>

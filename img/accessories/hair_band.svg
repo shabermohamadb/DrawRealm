@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Velvet Alice Band -->
+  <path d="M 54 68 C 52 42 62 28 80 28 C 98 28 108 42 106 68" fill="none" stroke="#831843" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 54 68 C 52 42 62 28 80 28 C 98 28 108 42 106 68" fill="none" stroke="#be185d" stroke-width="3" stroke-linecap="round"/>
+  <!-- Perky Side Bow on Right -->
+  <g transform="translate(98, 36) rotate(15)">
+    <!-- Left Loop -->
+    <path d="M 0 0 C -10 -8 -12 8 0 2 Z" fill="#db2777" stroke="#831843" stroke-width="1.8"/>
+    <!-- Right Loop -->
+    <path d="M 0 0 C 10 -8 12 8 0 2 Z" fill="#db2777" stroke="#831843" stroke-width="1.8"/>
+    <!-- Knot Center -->
+    <circle cx="0" cy="1" r="3.2" fill="#9d174d" stroke="#831843" stroke-width="1.2"/>
+    <!-- Ribbon Tails -->
+    <path d="M -1 3 L -5 14 L 0 11 L 3 13 L 1 3" fill="#be185d" stroke="#831843" stroke-width="1.2"/>
+  </g>
+</svg>

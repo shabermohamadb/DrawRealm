@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Porcelain Mask Plate on Left Cheek -->
+  <g transform="translate(52, 68)">
+    <path d="M 12 0 C 22 2 28 10 28 20 C 28 28 18 34 8 32 C 0 30 -2 18 2 10 Z" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+    <!-- Fox Eye Slit -->
+    <path d="M 6 12 Q 14 10 20 15 Q 14 14 6 12" fill="#0f172a"/>
+    <!-- Crimson Markings -->
+    <path d="M 4 8 Q 10 4 18 6" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
+    <path d="M 2 16 Q 8 20 14 18" fill="none" stroke="#dc2626" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="16" cy="24" r="1.5" fill="#dc2626"/>
+    <!-- Red Hanging Cord & Bell -->
+    <path d="M 2 26 Q 4 36 0 44" fill="none" stroke="#dc2626" stroke-width="1.5"/>
+    <circle cx="0" cy="45" r="2.5" fill="#fbbf24" stroke="#b45309" stroke-width="1"/>
+  </g>
+</svg>

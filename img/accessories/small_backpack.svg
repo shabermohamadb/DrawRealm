@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Backpack body peaking behind shoulders: centered at (80, 105) -->
+  <g>
+    <!-- Top Carry Handle -->
+    <path d="M 72 82 C 72 75 88 75 88 82" fill="none" stroke="#1c1917" stroke-width="3" stroke-linecap="round"/>
+    <!-- Rolled Bedroll on Top -->
+    <rect x="62" y="78" width="36" height="8" rx="4" fill="#a16207" stroke="#451a03" stroke-width="2"/>
+    <line x1="70" y1="78" x2="70" y2="86" stroke="#451a03" stroke-width="1.5"/>
+    <line x1="90" y1="78" x2="90" y2="86" stroke="#451a03" stroke-width="1.5"/>
+    <!-- Main Pack Body -->
+    <rect x="58" y="84" width="44" height="42" rx="7" fill="#3f3f46" stroke="#18181b" stroke-width="2.5"/>
+    <rect x="60" y="86" width="40" height="38" rx="5" fill="#52525b"/>
+    <!-- Padded Straps peaking past shoulders -->
+    <path d="M 54 94 C 50 100 50 114 54 122" fill="none" stroke="#27272a" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M 106 94 C 110 100 110 114 106 122" fill="none" stroke="#27272a" stroke-width="4.5" stroke-linecap="round"/>
+    <!-- Outer Side Pouches -->
+    <rect x="54" y="96" width="6" height="18" rx="2" fill="#27272a" stroke="#18181b" stroke-width="1.5"/>
+    <rect x="100" y="96" width="6" height="18" rx="2" fill="#27272a" stroke="#18181b" stroke-width="1.5"/>
+  </g>
+</svg>

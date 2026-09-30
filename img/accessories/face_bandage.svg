@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Diagonal Strip 1 -->
+  <rect x="73" y="82" width="14" height="6" rx="1.5" transform="rotate(-20 80 85)" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <rect x="76" y="83" width="8" height="4" rx="1" transform="rotate(-20 80 85)" fill="#ffffff" opacity="0.6"/>
+  <!-- Diagonal Strip 2 (Crossed) -->
+  <rect x="73" y="82" width="14" height="6" rx="1.5" transform="rotate(25 80 85)" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <rect x="76" y="83" width="8" height="4" rx="1" transform="rotate(25 80 85)" fill="#ffffff" opacity="0.6"/>
+  <!-- Micro Gauze Dots -->
+  <circle cx="80" cy="85" r="0.8" fill="#b45309"/>
+</svg>

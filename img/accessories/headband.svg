@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="100%" height="100%">
+  <!-- Cloth Band Across Forehead -->
+  <path d="M 52 53 Q 80 50 108 53 L 108 61 Q 80 58 52 61 Z" fill="#1e293b" stroke="#0f172a" stroke-width="2"/>
+  <!-- Metal Forehead Plate -->
+  <rect x="67" y="50" width="26" height="11" rx="2" fill="#cbd5e1" stroke="#334155" stroke-width="1.8"/>
+  <rect x="69" y="52" width="22" height="7" rx="1" fill="#f8fafc"/>
+  <!-- Rivets -->
+  <circle cx="69.5" cy="52.5" r="0.8" fill="#475569"/>
+  <circle cx="90.5" cy="52.5" r="0.8" fill="#475569"/>
+  <circle cx="69.5" cy="58.5" r="0.8" fill="#475569"/>
+  <circle cx="90.5" cy="58.5" r="0.8" fill="#475569"/>
+  <!-- Plate Inscribed Crest -->
+  <path d="M 77 56 Q 80 53 83 56 Q 80 59 77 56" fill="none" stroke="#475569" stroke-width="1.2"/>
+  <!-- Trailing Ribbon Tails (Side Knot on Right) -->
+  <circle cx="109" cy="57" r="3" fill="#0f172a"/>
+  <path d="M 109 57 C 118 64 125 76 122 88 C 120 84 116 75 110 68 Z" fill="#1e293b" stroke="#0f172a" stroke-width="1.5"/>
+  <path d="M 108 59 C 114 70 120 85 116 95 C 113 90 110 80 107 68 Z" fill="#334155" stroke="#0f172a" stroke-width="1.5"/>
+</svg>

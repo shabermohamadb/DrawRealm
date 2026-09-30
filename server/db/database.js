@@ -92,9 +92,24 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_room_players_room ON room_players(room_id);
     `);
 
-    // Safe migration: Add power_points column if not present in existing table
+    // Safe migration: Add power_points and avatar columns if not present in existing table
     try {
       this.db.exec("ALTER TABLE players ADD COLUMN power_points INTEGER DEFAULT 0;");
+    } catch (e) {
+      // Column already exists
+    }
+    try {
+      this.db.exec("ALTER TABLE players ADD COLUMN avatar TEXT DEFAULT '[]';");
+    } catch (e) {
+      // Column already exists
+    }
+    try {
+      this.db.exec("ALTER TABLE players ADD COLUMN avatar_accessory TEXT DEFAULT '';");
+    } catch (e) {
+      // Column already exists
+    }
+    try {
+      this.db.exec("ALTER TABLE players ADD COLUMN avatar_accessory_variant INTEGER DEFAULT 0;");
     } catch (e) {
       // Column already exists
     }
@@ -102,8 +117,8 @@ class DatabaseManager {
     // Prepare commonly used statements
     this.stmtGetPlayer = this.db.prepare("SELECT * FROM players WHERE LOWER(name) = LOWER(?)");
     this.stmtUpsertPlayer = this.db.prepare(`
-      INSERT INTO players (name, xp, level, equipped_powers, ultimate_power, unlocked_powers, achievements, stats, power_points, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO players (name, xp, level, equipped_powers, ultimate_power, unlocked_powers, achievements, stats, power_points, avatar, avatar_accessory, avatar_accessory_variant, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(name) DO UPDATE SET
         xp = excluded.xp,
         level = excluded.level,
@@ -113,8 +128,15 @@ class DatabaseManager {
         achievements = excluded.achievements,
         stats = excluded.stats,
         power_points = excluded.power_points,
+        avatar = excluded.avatar,
+        avatar_accessory = excluded.avatar_accessory,
+        avatar_accessory_variant = excluded.avatar_accessory_variant,
         updated_at = excluded.updated_at
     `);
+
+    this.stmtUpdatePlayerAvatar = this.db.prepare(
+      "UPDATE players SET avatar = ?, avatar_accessory = ?, avatar_accessory_variant = ?, updated_at = ? WHERE LOWER(name) = LOWER(?)"
+    );
 
     this.stmtInsertMatch = this.db.prepare(`
       INSERT INTO matches (id, room_id, mode, rounds, winner_name, players_count, final_scores, ended_at)
@@ -242,7 +264,10 @@ class DatabaseManager {
           roundsWon: 0,
           highestStreak: 0
         },
-        powerPoints: 0
+        powerPoints: 0,
+        avatar: [0, 0, 0, -1, "", 0],
+        avatarAccessory: "",
+        avatarAccessoryVariant: 0
       };
 
       this.stmtUpsertPlayer.run(
@@ -255,11 +280,23 @@ class DatabaseManager {
         JSON.stringify(defaultProfile.achievements),
         JSON.stringify(defaultProfile.stats),
         defaultProfile.powerPoints,
+        JSON.stringify(defaultProfile.avatar),
+        defaultProfile.avatarAccessory,
+        defaultProfile.avatarAccessoryVariant,
         now,
         now
       );
 
       return defaultProfile;
+    }
+
+    let parsedAvatar = [0, 0, 0, -1, "", 0];
+    try {
+      if (row.avatar) {
+        parsedAvatar = JSON.parse(row.avatar);
+      }
+    } catch (e) {
+      parsedAvatar = [0, 0, 0, -1, "", 0];
     }
 
     return {
@@ -271,13 +308,21 @@ class DatabaseManager {
       unlockedPowers: JSON.parse(row.unlocked_powers || "[]"),
       achievements: JSON.parse(row.achievements || "[]"),
       stats: JSON.parse(row.stats || "{}"),
-      powerPoints: row.power_points !== undefined && row.power_points !== null ? row.power_points : 0
+      powerPoints: row.power_points !== undefined && row.power_points !== null ? row.power_points : 0,
+      avatar: parsedAvatar,
+      avatarAccessory: row.avatar_accessory || "",
+      avatar_accessory: row.avatar_accessory || "",
+      avatarAccessoryVariant: row.avatar_accessory_variant || 0,
+      avatar_accessory_variant: row.avatar_accessory_variant || 0
     };
   }
 
   savePlayer(name, profile) {
     const cleanName = (name || profile.name || "Player").trim();
     const now = Date.now();
+    const avatarData = profile.avatar || [0, 0, 0, -1, "", 0];
+    const accId = profile.avatarAccessory || (Array.isArray(avatarData) ? avatarData[4] : "") || "";
+    const accVariant = profile.avatarAccessoryVariant !== undefined ? profile.avatarAccessoryVariant : (Array.isArray(avatarData) ? avatarData[5] : 0) || 0;
 
     this.stmtUpsertPlayer.run(
       cleanName,
@@ -289,6 +334,9 @@ class DatabaseManager {
       JSON.stringify(profile.achievements || []),
       JSON.stringify(profile.stats || {}),
       profile.powerPoints || 0,
+      JSON.stringify(avatarData),
+      accId,
+      accVariant,
       now,
       now
     );
@@ -299,6 +347,25 @@ class DatabaseManager {
     }
 
     return profile;
+  }
+
+  updatePlayerAvatar(name, avatarTuple) {
+    const cleanName = (name || "Player").trim();
+    const now = Date.now();
+    const avatarArray = Array.isArray(avatarTuple) ? avatarTuple : [0, 0, 0, -1, "", 0];
+    const accessoryId = typeof avatarTuple[4] === "string" ? avatarTuple[4] : "";
+    const accessoryVariant = Number.isInteger(avatarTuple[5]) ? avatarTuple[5] : 0;
+
+    // Ensure player profile exists
+    this.getPlayer(cleanName);
+
+    this.stmtUpdatePlayerAvatar.run(
+      JSON.stringify(avatarArray),
+      accessoryId,
+      accessoryVariant,
+      now,
+      cleanName
+    );
   }
 
   syncPlayerToSupabase(cleanName, profile) {
